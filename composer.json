@@ -1,0 +1,21 @@
+{
+  "name": "eventspot/eventspot",
+  "description": "Secure PHP and MySQL backend for Spearing Events",
+  "type": "project",
+  "require": {
+    "php": "^8.1",
+    "endroid/qr-code": "^5.0",
+    "phpmailer/phpmailer": "^6.9",
+    "razorpay/razorpay": "^2.9",
+    "vlucas/phpdotenv": "^5.6"
+  },
+  "autoload": {
+    "psr-4": {
+      "EventSpot\\": "app/"
+    }
+  },
+  "config": {
+    "sort-packages": true,
+    "optimize-autoloader": true
+  }
+}

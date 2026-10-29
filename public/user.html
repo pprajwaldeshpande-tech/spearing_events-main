@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spearing Events</title>
+  <link rel="stylesheet" href="style.css?v=6" />
+  <style>
+    .notif-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .seat-badge {
+      font-size: .72rem; font-weight: 700; padding: .18rem .55rem;
+      border-radius: 99px; display: inline-block;
+    }
+    .seat-badge.seat-ok   { background:rgba(34,211,160,.12); color:var(--success); border:1px solid rgba(34,211,160,.3); }
+    .seat-badge.seat-low  { background:rgba(251,146,60,.12);  color:var(--warn);    border:1px solid rgba(251,146,60,.3); }
+    .seat-badge.seat-full { background:rgba(244,63,94,.12);   color:var(--danger);  border:1px solid rgba(244,63,94,.3); }
+
+    .location-status {
+      font-size: .82rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+    }
+    .location-status.locating { color: var(--warn); }
+    .location-status.located  { color: var(--success); }
+    .location-status.denied   { color: var(--danger); }
+  </style>
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="index.html?home=member-cta-2" class="logo"> <span>Spearing</span> Events</a>
+  <ul class="nav-links" id="nav-links">
+    <li><a href="index.html?home=member-cta-2">Home</a></li>
+    <!-- Notification bell injected by JS -->
+  </ul>
+</nav>
+
+<div class="dash-header">
+  <div>
+    <div class="welcome">User Dashboard</div>
+    <h2 id="welcome-name">Welcome!</h2>
+  </div>
+  <div id="location-display" class="location-status locating">
+     Detecting your location…
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('all')">All Events</button>
+  <button class="tab-btn" onclick="switchTab('my')">My Bookings</button>
+  <button class="tab-btn" onclick="switchTab('notifs')" id="notif-tab-btn"> Notifications</button>
+</div>
+
+<!-- Tab: All Events -->
+<div class="tab-panel active" id="tab-all">
+  <div class="nearby-bar">
+    <label class="toggle">
+      <input type="checkbox" id="nearby-toggle" onchange="applyFilters()" />
+      <div class="slider"></div>
+    </label>
+    <span style="font-size:.9rem;font-weight:600">Nearby events only</span>
+    <span style="font-size:.82rem;color:var(--muted)">
+      within
+      <input type="number" id="radius-km" value="15" min="1" max="100"
+        style="width:52px;padding:.2rem .4rem;font-size:.82rem;display:inline-block"
+        onchange="applyFilters()" />
+      km
+    </span>
+  </div>
+
+  <div class="filter-bar">
+    <input type="text" id="search-input" placeholder="Search by name or location…" oninput="applyFilters()" />
+    <select id="filter-cat" onchange="applyFilters()">
+      <option value="">All categories</option>
+      <option>Technology</option><option>Music</option><option>Food</option>
+      <option>Business</option><option>Health</option><option>Arts</option>
+      <option>Sports</option><option>Education</option><option>Other</option>
+    </select>
+    <input type="date" id="filter-date" onchange="applyFilters()" />
+    <button class="btn btn-outline btn-sm" onclick="clearFilters()">Clear filters</button>
+  </div>
+
+  <div class="events-grid" id="all-events-grid">
+    <div class="empty-state"><div class="icon"></div><p>Loading events…</p></div>
+  </div>
+</div>
+
+<!-- Tab: My Bookings -->
+<div class="tab-panel" id="tab-my">
+  <h3 style="margin-bottom:1.5rem">Your bookings</h3>
+  <div class="events-grid" id="my-events-grid">
+    <div class="empty-state"><div class="icon"></div><p>No bookings yet.</p></div>
+  </div>
+</div>
+
+<!-- Tab: Notifications -->
+<div class="tab-panel" id="tab-notifs">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem">
+    <h3>Notifications</h3>
+    <button class="btn btn-outline btn-sm" onclick="markAllRead()">Mark all read</button>
+  </div>
+  <div id="notif-list">
+    <div class="empty-state"><div class="icon"></div><p>No notifications yet.</p></div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="shared.js?v=7"></script>
+<script src="api-client.js?v=9"></script>
+<script>
+  // Fallback coords: Bengaluru Majestic
+  const FALLBACK_LAT = 12.9762;
+  const FALLBACK_LON = 77.5736;
+
+  // Live user coordinates — updated once geolocation resolves
+  let USER_LAT = FALLBACK_LAT;
+  let USER_LON = FALLBACK_LON;
+  let locationReady = false;
+
+  let allEvents   = [];
+  let currentUser = null;
+
+  // ── Date normaliser ───────────────────────────────────────
+  // Converts ANY of these formats into "YYYY-MM-DD" for comparison:
+  //   "26-Jul-2026"   (admin DD-MMM-YYYY)
+  //   "26-07-2026"    (DD-MM-YYYY)
+  //   "2026-07-26"    (ISO, already correct)
+  //   "07/26/2026"    (MM/DD/YYYY)
+  function normaliseDateToISO(raw) {
+    if (!raw) return '';
+    const s = raw.trim();
+
+    // Already ISO: YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+    // DD-MMM-YYYY  e.g. 26-Jul-2026
+    const monthNames = {
+      jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',
+      jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'
+    };
+    const mmmMatch = s.match(/^(\d{1,2})[-\/\s]([a-zA-Z]{3})[-\/\s](\d{4})$/);
+    if (mmmMatch) {
+      const dd  = mmmMatch[1].padStart(2, '0');
+      const mm  = monthNames[mmmMatch[2].toLowerCase()] || '01';
+      const yy  = mmmMatch[3];
+      return `${yy}-${mm}-${dd}`;
+    }
+
+    // DD-MM-YYYY  e.g. 26-07-2026
+    const dmyMatch = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+    if (dmyMatch) {
+      const dd = dmyMatch[1].padStart(2, '0');
+      const mm = dmyMatch[2].padStart(2, '0');
+      const yy = dmyMatch[3];
+      return `${yy}-${mm}-${dd}`;
+    }
+
+    // MM/DD/YYYY  e.g. 07/26/2026
+    const mdyMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (mdyMatch) {
+      const mm = mdyMatch[1].padStart(2, '0');
+      const dd = mdyMatch[2].padStart(2, '0');
+      const yy = mdyMatch[3];
+      return `${yy}-${mm}-${dd}`;
+    }
+
+    // Last resort: let Date() parse it
+    const d = new Date(s);
+    if (!isNaN(d)) {
+      const yy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yy}-${mm}-${dd}`;
+    }
+
+    return s; // give up, return as-is
+  }
+
+  // ── Geolocation ───────────────────────────────────────────
+  function initLocation() {
+    const display = document.getElementById('location-display');
+
+    if (!navigator.geolocation) {
+      display.textContent = ' Bengaluru Majestic (location unavailable)';
+      display.className   = 'location-status denied';
+      locationReady = true;
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      // SUCCESS
+      (pos) => {
+        USER_LAT = pos.coords.latitude;
+        USER_LON = pos.coords.longitude;
+
+        // Reverse geocode with a free API to show human-readable area name
+        fetch(`https://nominatim.openstreetmap.org/reverse?lat=${USER_LAT}&lon=${USER_LON}&format=json`)
+          .then(r => r.json())
+          .then(data => {
+            const addr    = data.address || {};
+            const suburb  = addr.suburb || addr.neighbourhood || addr.village || addr.town || '';
+            const city    = addr.city || addr.county || '';
+            const label   = suburb ? `${suburb}, ${city}` : city || 'Your location';
+            display.textContent = ` ${label}`;
+            display.className   = 'location-status located';
+          })
+          .catch(() => {
+            display.textContent = ` ${USER_LAT.toFixed(4)}, ${USER_LON.toFixed(4)}`;
+            display.className   = 'location-status located';
+          });
+
+        locationReady = true;
+        applyFilters();
+      },
+      // ERROR / DENIED
+      (err) => {
+        console.warn('Geolocation denied or failed:', err.message);
+        display.textContent = ' Bengaluru Majestic (location denied)';
+        display.className   = 'location-status denied';
+        USER_LAT = FALLBACK_LAT;
+        USER_LON = FALLBACK_LON;
+        locationReady = true;
+      },
+      { timeout: 10000, maximumAge: 60000, enableHighAccuracy: true }
+    );
+  }
+
+  // ── Init ──────────────────────────────────────────────────
+  (async function init() {
+    await EventSpot.ready;
+    if (!requireAuth('user')) return;
+    currentUser = getCurrentUser();
+    document.getElementById('welcome-name').textContent = `Welcome, ${currentUser.full_name || currentUser.username}!`;
+
+    // Inject logout + notification bell
+    const nav    = document.getElementById('nav-links');
+    const unread = getUserNotifications(currentUser.username).filter(n => !n.read).length;
+    nav.innerHTML += `
+      <li><span style="color:var(--accent2)"> ${currentUser.username}</span></li>
+      <li>
+        <div class="notif-wrap">
+          <span class="notif-bell" onclick="switchTab('notifs')" title="Notifications">
+            
+            <span class="notif-count" id="notif-badge" style="display:${unread ? '' : 'none'}">${unread}</span>
+          </span>
+        </div>
+      </li>
+      <li><button class="btn btn-outline btn-sm" onclick="logout()">Logout</button></li>
+    `;
+
+    initLocation();
+
+    allEvents = await fetchEvents();
+    wishlistIds = new Set(await EventSpot.getWishlist());
+    applyFilters();
+    renderMyBookings();
+    renderWishlist();
+    renderNotifications();
+    updateNotifBadge();
+  })();
+
+  // ── Tab switching ─────────────────────────────────────────
+  function switchTab(name) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    const idx = { all: 0, my: 1, wishlist: 2, notifs: 3 }[name];
+    document.querySelectorAll('.tab-btn')[idx].classList.add('active');
+    document.getElementById('tab-' + name).classList.add('active');
+    if (name === 'my') renderMyBookings();
+    if (name === 'wishlist') renderWishlist();
+    if (name === 'notifs') {
+      renderNotifications();
+      markNotificationsRead(currentUser.username);
+      updateNotifBadge();
+    }
+  }
+
+  // ── Filters ───────────────────────────────────────────────
+  function applyFilters() {
+    const search   = document.getElementById('search-input').value.toLowerCase();
+    const cat      = document.getElementById('filter-cat').value;
+    const date     = document.getElementById('filter-date').value; // always YYYY-MM-DD from <input type="date">
+    const nearby   = document.getElementById('nearby-toggle').checked;
+    const radiusKm = parseFloat(document.getElementById('radius-km').value) || 15;
+
+    let filtered = allEvents.filter(e => {
+      if (search && !e.title.toLowerCase().includes(search) && !e.location.toLowerCase().includes(search)) return false;
+      if (cat  && e.category !== cat) return false;
+
+      // ── DATE FIX: normalise the event's stored date to ISO before comparing ──
+      if (date) {
+        const eventDateISO = normaliseDateToISO(e.date);
+        if (eventDateISO !== date) return false;
+      }
+
+      if (nearby) {
+        const dist = haversine(USER_LAT, USER_LON, e.latitude || 0, e.longitude || 0);
+        if (dist > radiusKm) return false;
+        e._dist = dist;
+      } else {
+        delete e._dist;
+      }
+      return true;
+    });
+
+    if (nearby) filtered.sort((a, b) => (a._dist || 0) - (b._dist || 0));
+    renderAllEvents(filtered);
+  }
+
+  function clearFilters() {
+    document.getElementById('search-input').value     = '';
+    document.getElementById('filter-cat').value       = '';
+    document.getElementById('filter-date').value      = '';
+    document.getElementById('nearby-toggle').checked  = false;
+    applyFilters();
+  }
+
+  // ── Render all events ─────────────────────────────────────
+  function renderAllEvents(events) {
+    const grid = document.getElementById('all-events-grid');
+
+    if (!events.length) {
+      grid.innerHTML = `<div class="empty-state"><div class="icon"></div><p>No events match your filters.</p></div>`;
+      return;
+    }
+
+    grid.innerHTML = events.map(e => {
+      const img  = getEventImage(e);
+      const reg  = isUserRegistered(currentUser.username, e.id);
+      const dist = e._dist !== undefined
+        ? `<span class="dist-tag"> ${e._dist.toFixed(1)} km away</span>`
+        : '';
+      const priceLabel = !e.price || e.price === 0
+        ? `<span class="event-price free">Free</span>`
+        : `<span class="event-price">₹${Number(e.price).toLocaleString('en-IN')}</span>`;
+
+      let actionBtn;
+      if (reg) {
+        const cls = reg.status === 'approved' ? 'btn-success' : reg.status === 'rejected' ? 'btn-danger' : 'btn-warn';
+        const lbl = reg.status === 'approved' ? 'Approved' : reg.status === 'rejected' ? 'Rejected' : 'Pending';
+        actionBtn = `<button class="btn ${cls} btn-sm" onclick="goToEvent('${e.id}')">${lbl}</button>`;
+      } else {
+        actionBtn = `<button class="btn btn-primary btn-sm" onclick="goToEvent('${e.id}')">View & Book →</button>`;
+      }
+
+      return `
+        <div class="card event-card" onclick="goToEvent('${e.id}')">
+          <img class="event-img" src="${img}" alt="${e.title}" onerror="this.style.display='none'" loading="lazy" />
+          <div class="event-card-body">
+            <button class="btn btn-outline btn-sm wishlist-toggle" style="float:right" onclick="event.stopPropagation();toggleWishlist('${e.id}')">${wishlistIds.has(e.id) ? 'Saved' : 'Wishlist'}</button>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+              ${catBadge(e.category)}
+              ${dist}
+              ${seatBadge(e.id, e.capacity)}
+            </div>
+            <h3>${e.title}</h3>
+            <div class="event-meta">
+              <span> ${formatDate(e.date)}</span>
+              <span> ${e.location}</span>
+            </div>
+            <p class="event-desc">${(e.description || '').slice(0, 90)}…</p>
+            <div class="card-actions">
+              ${priceLabel}
+              ${actionBtn}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function goToEvent(id) {
+    window.location.href = `event.html?id=${id}`;
+  }
+
+  async function toggleWishlist(eventId) {
+    try {
+      if (wishlistIds.has(eventId)) {
+        await EventSpot.removeWishlist(eventId);
+        wishlistIds.delete(eventId);
+        showToast('Removed from wishlist.', 'info');
+      } else {
+        await EventSpot.addWishlist(eventId);
+        wishlistIds.add(eventId);
+        showToast('Saved to wishlist.', 'success');
+      }
+      applyFilters();
+      renderWishlist();
+    } catch (error) {
+      showToast(error.message, 'error');
+    }
+  }
+
+  function renderWishlist() {
+    const grid = document.getElementById('wishlist-events-grid');
+    const events = allEvents.filter(event => wishlistIds.has(event.id));
+    if (!events.length) {
+      grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="icon"></div><p>No saved events yet.</p></div>';
+      return;
+    }
+    grid.innerHTML = events.map(event => `
+      <div class="card event-card" onclick="goToEvent('${event.id}')">
+        <img class="event-img" src="${getEventImage(event)}" alt="${event.title}" loading="lazy" />
+        <div class="event-card-body">
+          ${catBadge(event.category)}
+          <h3>${event.title}</h3>
+          <div class="event-meta"><span>${formatDate(event.date)}</span><span>${event.location}</span></div>
+          <div class="card-actions"><span class="event-price">${event.price ? '₹' + Number(event.price).toLocaleString('en-IN') : 'Free'}</span><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();toggleWishlist('${event.id}')">Remove</button></div>
+        </div>
+      </div>`).join('');
+  }
+
+  // ── My Bookings ───────────────────────────────────────────
+  function renderMyBookings() {
+    const grid = document.getElementById('my-events-grid');
+    const regs = getUserRegistrations(currentUser.username);
+
+    if (!regs.length) {
+      grid.innerHTML = `
+        <div class="empty-state" style="grid-column:1/-1">
+          <div class="icon"></div>
+          <p>You haven't booked any events yet.</p>
+          <button class="btn btn-primary btn-sm" style="margin-top:1rem" onclick="switchTab('all')">Browse events →</button>
+        </div>`;
+      return;
+    }
+
+    grid.innerHTML = regs.map(r => {
+      const event     = allEvents.find(e => e.id === r.eventId);
+      const img       = event ? getEventImage(event) : '';
+      const statusCls = r.status === 'approved' ? 'btn-success' : r.status === 'rejected' ? 'btn-danger' : 'btn-warn';
+      const statusLbl = r.status === 'approved' ? 'Approved' : r.status === 'rejected' ? 'Rejected' : (r.paymentReference ? 'Payment Submitted' : 'Pending Payment');
+
+      return `
+        <div class="card event-card" onclick="goToEvent('${r.eventId}')">
+          ${img ? `<img class="event-img" src="${img}" alt="${r.eventTitle}" onerror="this.style.display='none'" loading="lazy" />` : ''}
+          <div class="event-card-body">
+            <h3>${r.eventTitle}</h3>
+            ${event ? `<div class="event-meta"><span> ${formatDate(event.date)}</span><span> ${event.location}</span></div>` : ''}
+            <div class="card-actions" style="justify-content:space-between">
+              <span class="btn ${statusCls} btn-sm" style="cursor:default">${statusLbl}</span>
+              <span style="font-size:.8rem;color:var(--muted)">
+                ${r.amount > 0 ? `₹${Number(r.amount).toLocaleString('en-IN')} paid` : 'Free'}
+              </span>
+            </div>
+            <div style="font-size:.75rem;color:var(--muted);margin-top:.5rem">
+              Booking ID: <strong style="color:var(--accent2)">${r.paymentId}</strong>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ── Notifications ─────────────────────────────────────────
+  function renderNotifications() {
+    const notes = getUserNotifications(currentUser.username);
+    const list  = document.getElementById('notif-list');
+
+    if (!notes.length) {
+      list.innerHTML = `<div class="empty-state"><div class="icon"></div><p>No notifications yet.</p></div>`;
+      return;
+    }
+
+    list.innerHTML = notes.map(n => {
+      const iconMap = { success: '', error: '', info: '' };
+      const time    = new Date(n.at).toLocaleString('en-IN', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+      return `
+        <div class="notif-item ${n.read ? '' : 'unread'}" style="border-radius:var(--radius-sm);margin-bottom:.5rem;border:1px solid var(--border)">
+          <span class="notif-icon">${iconMap[n.type] || ''}</span>
+          <div>
+            <div>${n.message}</div>
+            <div class="notif-time">${time}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function markAllRead() {
+    markNotificationsRead(currentUser.username);
+    renderNotifications();
+    updateNotifBadge();
+    showToast('All notifications marked as read.', 'info');
+  }
+
+  function updateNotifBadge() {
+    const unread = getUserNotifications(currentUser.username).filter(n => !n.read).length;
+    const badge  = document.getElementById('notif-badge');
+    if (badge) {
+      badge.textContent   = unread;
+      badge.style.display = unread ? '' : 'none';
+    }
+    const tabBtn = document.getElementById('notif-tab-btn');
+    if (tabBtn) tabBtn.textContent = ` Notifications${unread ? ` (${unread})` : ''}`;
+  }
+</script>
+</body>
+</html>

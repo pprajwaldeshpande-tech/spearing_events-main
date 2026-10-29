@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Console — Spearing Events</title>
+  <link rel="stylesheet" href="style.css?v=6" />
+  <style>
+    #confirm-modal .modal { max-width: 380px; text-align: center; }
+    #confirm-modal .modal p { margin: .75rem 0 1.5rem; }
+    #confirm-modal .modal-actions { display: flex; gap: .75rem; justify-content: center; }
+
+    #img-preview-wrap {
+      width: 100%; min-height: 130px; border-radius: var(--radius-sm);
+      background: var(--surface2); border: 1px dashed var(--border);
+      overflow: hidden; margin-bottom: 1rem; display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+      align-items: center; justify-content: center; font-size: 2rem;
+      color: var(--muted); transition: all var(--trans);
+    }
+    #img-preview-wrap img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+
+    .analytics-grid {
+      display:grid; grid-template-columns:minmax(0,1.6fr) minmax(280px,.8fr); gap:1rem;
+      margin: 0 0 1.5rem;
+    }
+    .analytics-card {
+      background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+      padding:1rem;
+    }
+    .analytics-card h3 { margin:0 0 .25rem; }
+    .analytics-subtitle { color:var(--muted); font-size:.78rem; margin-bottom:.75rem; }
+    .analytics-trend { display:flex; align-items:flex-end; gap:.55rem; height:150px; padding-top:.5rem; }
+    .analytics-bar { flex:1; min-width:18px; background:var(--accent); border-radius:5px 5px 2px 2px; position:relative; }
+    .analytics-bar-label { position:absolute; top:calc(100% + .35rem); left:50%; transform:translateX(-50%); font-size:.65rem; color:var(--muted); }
+    .analytics-top-row { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:.75rem; padding:.65rem 0; border-bottom:1px solid var(--border); font-size:.82rem; }
+    .analytics-top-row:last-child { border-bottom:0; }
+    @media(max-width:900px) { .analytics-grid { grid-template-columns:1fr; } }
+
+    .reg-event-cell { display: flex; align-items: center; gap: .6rem; }
+    .reg-event-thumb {
+      width: 44px; height: 34px; object-fit: cover; border-radius: 5px;
+      background: var(--surface2); flex-shrink: 0;
+    }
+
+    /* ── Seat progress bar in table ── */
+    .seat-bar-wrap { min-width: 120px; }
+    .seat-bar-track {
+      height: 6px; background: var(--border); border-radius: 99px;
+      overflow: hidden; margin-bottom: .25rem;
+    }
+    .seat-bar-fill { height: 100%; border-radius: 99px; }
+    .seat-bar-ok   { background: var(--success); }
+    .seat-bar-low  { background: var(--warn); }
+    .seat-bar-full { background: var(--danger); }
+    .seat-bar-label { font-size: .72rem; color: var(--muted); }
+
+    /* ── Users tab layout ── */
+    .user-list-bar {
+      display: flex; gap: .75rem; flex-wrap: wrap; align-items: center;
+      margin: 1.25rem 0;
+    }
+    .user-list-bar h3 { margin: 0; }
+  </style>
+</head>
+<body class="admin-page">
+
+<nav class="navbar">
+  <a href="index.html?home=member-cta-2" class="logo"> <span>Spearing</span> Events</a>
+  <ul class="nav-links" id="nav-links">
+    <li><a href="index.html?home=member-cta-2">Home</a></li>
+  </ul>
+</nav>
+
+<header class="dash-header admin-heading">
+  <div>
+    <div class="welcome">EVENTSPOT / OPERATIONS</div>
+    <h1>Admin Console</h1>
+    <p>Manage events, bookings, attendees, and payment details.</p>
+  </div>
+  <a class="btn btn-primary admin-create-link" href="#event-form">Create an event</a>
+</header>
+
+<!-- Stats strip -->
+<section class="admin-stats" aria-label="Spearing Events overview">
+  <div class="admin-stat-card"><span>Events</span><strong id="s-total">—</strong><small>In your workspace</small></div>
+  <div class="admin-stat-card"><span>Registered users</span><strong id="s-users">—</strong><small>Across Spearing Events</small></div>
+  <div class="admin-stat-card"><span>Total bookings</span><strong id="s-bookings">—</strong><small>All event registrations</small></div>
+  <div class="admin-stat-card admin-stat-card--pending"><span>Pending approvals</span><strong id="s-pending">—</strong><small>Require your attention</small></div>
+  <div class="admin-stat-card"><span>Revenue</span><strong id="s-revenue">—</strong><small>From approved bookings</small></div>
+</section>
+
+<section class="analytics-grid" aria-label="Payment and event analytics">
+  <div class="analytics-card">
+    <h3>Revenue trend</h3>
+    <div class="analytics-subtitle">Confirmed payments over the last 7 days</div>
+    <div id="analytics-revenue-trend" class="analytics-trend"><span style="color:var(--muted)">Loading analytics…</span></div>
+  </div>
+  <div class="analytics-card">
+    <h3>Performance</h3>
+    <div class="analytics-subtitle">Current payment and event activity</div>
+    <div id="analytics-performance">Loading analytics…</div>
+  </div>
+  <div class="analytics-card" style="grid-column:1/-1">
+    <h3>Top-performing events</h3>
+    <div class="analytics-subtitle">Ranked by confirmed revenue</div>
+    <div id="analytics-top-events">Loading analytics…</div>
+  </div>
+</section>
+
+<!-- Main body -->
+<div class="admin-body">
+
+  <!-- Sidebar: Add / Edit event form -->
+  <aside class="admin-sidebar" id="event-form">
+    <div class="admin-form-heading">
+      <span class="admin-section-label">EVENT MANAGEMENT</span>
+      <h2 id="form-title">Create event</h2>
+      <p>Add the event details and publish-ready images.</p>
+    </div>
+    <input type="hidden" id="edit-id" />
+
+    <div id="img-preview-wrap">Photo preview</div>
+
+    <div class="form-group">
+      <label>Event title *</label>
+      <input type="text" id="f-title" placeholder="e.g. Bengaluru Tech Summit" />
+    </div>
+
+    <div class="form-group">
+      <label for="f-desc">About this event *</label>
+      <textarea id="f-desc" rows="7" maxlength="10000" placeholder="Share the full event details, schedule, what attendees can expect, and useful arrival information…"></textarea>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Date *</label>
+        <input type="date" id="f-date" />
+      </div>
+      <div class="form-group">
+        <label>Category *</label>
+        <select id="f-cat">
+          <option value="">Select…</option>
+          <option>Technology</option><option>Music</option><option>Food</option>
+          <option>Business</option><option>Health</option><option>Arts</option>
+          <option>Sports</option><option>Education</option><option>Other</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Location *</label>
+      <input type="text" id="f-location" placeholder="e.g. Whitefield, Bengaluru" />
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Price (₹)</label>
+        <input type="number" id="f-price" placeholder="0 = Free" min="0" step="1" oninput="updatePriceQrHint()" />
+      </div>
+      <div class="form-group">
+        <label>Total Capacity </label>
+        <input type="number" id="f-capacity" placeholder="e.g. 500" min="1" />
+      </div>
+    </div>
+    <div id="price-qr-preview-hint" style="font-size:.78rem;color:var(--muted);margin-top:-.4rem;margin-bottom:.75rem;line-height:1.4">
+      Dynamic UPI QR: <strong id="price-qr-preview-tag" style="color:var(--success)">₹0 (Free — no QR required)</strong><br />
+      UPI Receiver: <code style="color:var(--accent2);font-weight:600">pprajwaldeshpande-1@okicici</code>
+    </div>
+
+    <div class="form-group">
+      <label for="f-images">Event photos (up to 5 images, 5 MB each)</label>
+      <input type="file" id="f-images" accept="image/png,image/jpeg,image/webp" multiple onchange="previewEventImages(this.files)" />
+      <p style="font-size:.78rem;margin-top:-.7rem">The first uploaded photo is used as the cover. New photos are added to the gallery.</p>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Latitude</label>
+        <input type="number" id="f-lat" placeholder="12.9762" step="0.0001" />
+      </div>
+      <div class="form-group">
+        <label>Longitude</label>
+        <input type="number" id="f-lon" placeholder="77.5736" step="0.0001" />
+      </div>
+    </div>
+
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="submitForm()" id="submit-btn">Create event</button>
+      <button class="btn btn-outline" onclick="resetForm()" id="cancel-btn" style="display:none">Cancel</button>
+    </div>
+  </aside>
+
+  <!-- Main panel -->
+  <main class="admin-main">
+    <!-- Tabs -->
+    <div class="admin-tabs" role="tablist" aria-label="Admin sections">
+      <button class="admin-tab-btn active" id="admin-tab-events" role="tab" aria-controls="panel-events" aria-selected="true" onclick="switchAdminTab('events')">Events</button>
+      <button class="admin-tab-btn" id="admin-tab-registrations" role="tab" aria-controls="panel-registrations" aria-selected="false" onclick="switchAdminTab('registrations')">Registrations <span id="pending-badge" class="admin-pending-badge"></span></button>
+      <button class="admin-tab-btn" id="admin-tab-users" role="tab" aria-controls="panel-users" aria-selected="false" onclick="switchAdminTab('users')">Users</button>
+      <button class="admin-tab-btn" id="admin-tab-payments" role="tab" aria-controls="panel-payments" aria-selected="false" onclick="switchAdminTab('payments')">Payment QR</button>
+    </div>
+
+    <!-- ── Events tab ────────────────────────────────────── -->
+    <div class="admin-tab-panel active" id="panel-events" role="tabpanel" aria-labelledby="admin-tab-events">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:1.25rem 0;flex-wrap:wrap;gap:.75rem">
+        <h3>All Events</h3>
+        <input type="text" id="admin-search" placeholder="Search events…" style="max-width:240px" oninput="adminEventPage=1;renderTable()" />
+      </div>
+      <div id="admin-event-pagination" class="admin-pagination" aria-label="Event list pagination"></div>
+
+      <!-- Card grid view -->
+      <div class="events-grid" id="admin-events-grid" style="margin-bottom:2rem">
+        <div class="empty-state"><div class="icon"></div><p>Loading…</p></div>
+      </div>
+
+      <!-- Table view -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+        <h4 style="color:var(--muted);font-size:.85rem;font-weight:500"> Table View</h4>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Image</th>
+              <th>Title</th>
+              <th>Category</th>
+              <th>Date</th>
+              <th>Status</th>
+              <th>Price</th>
+              <th>Capacity / Seats</th>
+              <th>Registrations</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="events-tbody">
+            <tr><td colspan="10" style="text-align:center;color:var(--muted);padding:2rem">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Registrations tab ─────────────────────────────── -->
+    <div class="admin-tab-panel" id="panel-registrations" role="tabpanel" aria-labelledby="admin-tab-registrations">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:1.25rem 0;flex-wrap:wrap;gap:.75rem">
+        <h3>User Registrations</h3>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <select id="reg-filter-status" onchange="renderRegistrations()" style="max-width:160px">
+            <option value="">All status</option>
+            <option value="pending"> Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+          <input type="text" id="reg-search" placeholder="Search user/event…" style="max-width:220px" oninput="renderRegistrations()" />
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>User</th>
+              <th>Event</th>
+              <th>Amount</th>
+              <th>Booking ID</th>
+              <th>UPI reference</th>
+              <th>Booked on</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="reg-tbody">
+            <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:2rem">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Shared payment QR tab ─────────────────────────── -->
+    <div class="admin-tab-panel" id="panel-payments" role="tabpanel" aria-labelledby="admin-tab-payments">
+      <div style="max-width:620px;margin:1.5rem auto">
+        <h3>Dynamic UPI Payment Integration</h3>
+        <p style="color:var(--muted);margin:0.75rem 0 1rem">
+          Configure your receiver UPI account. Spearing Events automatically generates a dynamic UPI payment QR prefilled with the exact event price (e.g. ₹500 or ₹1,000) for every booking.
+        </p>
+        <div class="form-group">
+          <label for="payment-upi-id">Receiver UPI ID *</label>
+          <input id="payment-upi-id" type="text" placeholder="pprajwaldeshpande-1@okicici" autocomplete="off" />
+          <small style="color:var(--muted);font-size:.78rem;display:block;margin-top:.25rem">Default receiver: <strong style="color:var(--accent2)">pprajwaldeshpande-1@okicici</strong></small>
+        </div>
+        <div class="form-group">
+          <label for="payment-payee-name">Payee Name</label>
+          <input id="payment-payee-name" type="text" placeholder="Prajwal Deshpande" maxlength="100" />
+        </div>
+        <button class="btn btn-primary" id="payment-settings-save" onclick="savePaymentSettings()">Save payment details</button>
+
+        <!-- Live Dynamic UPI QR Tester -->
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1.25rem;margin:1.75rem 0">
+          <h4 style="margin:0 0 .5rem;color:var(--text);font-size:1rem;display:flex;align-items:center;gap:.5rem">
+             Dynamic UPI QR Tester
+          </h4>
+          <p style="font-size:.82rem;color:var(--muted);margin:0 0 1rem;line-height:1.5">
+            Test and preview real dynamic UPI QR codes. Click any button below to generate a live QR code with that exact amount pre-filled for receiver <strong style="color:var(--accent2)">pprajwaldeshpande-1@okicici</strong>:
+          </p>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">
+            <button type="button" class="btn btn-outline btn-sm" onclick="testDynamicQr(500)">Test ₹500 QR</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="testDynamicQr(700)">Test ₹700 QR</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="testDynamicQr(1000)">Test ₹1,000 QR</button>
+            <div style="display:flex;align-items:center;gap:.35rem">
+              <input type="number" id="test-custom-amount" placeholder="Custom ₹" style="width:110px;padding:.3rem .5rem;font-size:.82rem" min="1" step="1" />
+              <button type="button" class="btn btn-outline btn-sm" onclick="testCustomDynamicQr()">Preview</button>
+            </div>
+          </div>
+          <div id="dynamic-qr-tester-result" style="display:none;text-align:center;padding:1.25rem;background:var(--surface);border-radius:var(--radius-sm);border:1px dashed var(--border)">
+            <!-- Injected by testDynamicQr(amount) -->
+          </div>
+        </div>
+
+        <hr style="border:0;border-top:1px solid var(--border);margin:1.25rem 0" />
+        <p style="color:var(--muted);font-size:.82rem">Optional static fallback QR image (used only when dynamic QR cannot be generated).</p>
+        <div id="payment-qr-preview" style="min-height:180px;display:flex;align-items:center;justify-content:center;background:var(--surface2);border:1px dashed var(--border);border-radius:var(--radius-sm);margin-bottom:1rem;padding:1rem;color:var(--muted)">No payment QR uploaded</div>
+        <div class="form-group">
+          <label for="payment-qr-file">QR image (PNG, JPEG, or WebP; max 3 MB)</label>
+          <input id="payment-qr-file" type="file" accept="image/png,image/jpeg,image/webp" />
+        </div>
+        <button class="btn btn-primary" id="payment-qr-upload" onclick="uploadPaymentQr()">Upload static QR</button>
+      </div>
+    </div>
+
+    <!-- ── Users tab ─────────────────────────────────────── -->
+    <div class="admin-tab-panel" id="panel-users" role="tabpanel" aria-labelledby="admin-tab-users">
+      <div class="user-list-bar">
+        <h3>Registered Users</h3>
+        <input type="text" id="user-search" placeholder="Search by name or email…"
+          style="max-width:260px" oninput="renderUsers()" />
+        <select id="user-sort" onchange="renderUsers()" style="max-width:180px">
+          <option value="name">Sort: Name A–Z</option>
+          <option value="bookings">Sort: Most Bookings</option>
+          <option value="recent">Sort: Most Recent</option>
+        </select>
+      </div>
+      <div id="user-empty-notice" style="display:none;padding:1rem;background:rgba(124,92,252,.08);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.88rem;color:var(--muted);margin-bottom:1rem">
+         No users have signed up yet. Users appear here after they register via the Sign Up page.
+      </div>
+      <div class="user-card-grid" id="user-card-grid">
+        <div class="empty-state" style="grid-column:1/-1"><div class="icon"></div><p>Loading users…</p></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Archive confirmation modal -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3> Archive event</h3>
+      <button class="modal-close" onclick="closeConfirm()">Close</button>
+    </div>
+    <p id="confirm-msg">Archive this event from public listings while preserving its booking history?</p>
+    <div class="modal-actions">
+      <button class="btn btn-danger" onclick="confirmDelete()">Archive event</button>
+      <button class="btn btn-outline" onclick="closeConfirm()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- User detail modal -->
+<div class="modal-overlay" id="user-modal">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <h3 id="umodal-title">User Details</h3>
+      <button class="modal-close" onclick="closeUserModal()">Close</button>
+    </div>
+    <div id="umodal-body"></div>
+  </div>
+</div>
+
+<!-- Dynamic Event Payment QR Modal -->
+<div class="modal-overlay" id="event-qr-modal">
+  <div class="modal" style="max-width:440px;text-align:center">
+    <div class="modal-header">
+      <h3 id="eqr-modal-title">Event Payment QR</h3>
+      <button class="modal-close" onclick="closeEventQrModal()">Close</button>
+    </div>
+    <div id="eqr-modal-body"></div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="shared.js?v=7"></script>
+<script src="api-client.js?v=7"></script>
+<script>
+  let allEvents    = [];
+  let deleteTarget = null;
+  const ADMIN_EVENT_PAGE_SIZE = 24;
+  let adminEventPage = 1;
+
+  (async function init() {
+    await EventSpot.ready;
+    if (!requireAuth('admin')) return;
+    injectLogoutBtn('nav-links');
+
+    allEvents = await EventSpot.adminEvents();
+    renderTable();
+    renderAdminCards();
+    renderRegistrations();
+    renderUsers();
+    await loadPaymentQr();
+    updateStats();
+    await loadAnalytics();
+  })();
+
+  // ── Tab switching ──────────────────────────────────────────
+  function switchAdminTab(name) {
+    document.querySelectorAll('.admin-tab-btn').forEach(b => {
+      b.classList.remove('active');
+      b.setAttribute('aria-selected', 'false');
+    });
+    document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.remove('active'));
+    const idx = { events: 0, registrations: 1, users: 2, payments: 3 }[name];
+    const selectedTab = document.querySelectorAll('.admin-tab-btn')[idx];
+    selectedTab.classList.add('active');
+    selectedTab.setAttribute('aria-selected', 'true');
+    document.getElementById('panel-' + name).classList.add('active');
+    if (name === 'registrations') renderRegistrations();
+    if (name === 'payments') loadPaymentQr();
+    if (name === 'users') {
+      if (!allEvents || allEvents.length === 0) {
+        document.getElementById('user-card-grid').innerHTML =
+          `<div class="empty-state" style="grid-column:1/-1"><div class="icon"></div><p>Loading user data…</p></div>`;
+        fetchEvents().then(evs => { allEvents = evs; renderUsers(); });
+      } else {
+        renderUsers();
+      }
+    }
+  }
+
+  // ── Stats ─────────────────────────────────────────────────
+  function updateStats() {
+    const regs  = LS.get('registrations') || [];
+    const users = LS.get('users') || [];
+    const revenue = regs.filter(r => r.status === 'approved').reduce((s, r) => s + (r.amount || 0), 0);
+    document.getElementById('s-total').textContent    = allEvents.length;
+    document.getElementById('s-users').textContent    = users.length;
+    document.getElementById('s-bookings').textContent = regs.length;
+    document.getElementById('s-pending').textContent  = regs.filter(r => r.status === 'pending').length;
+    document.getElementById('s-revenue').textContent  = revenue > 0 ? '₹' + Number(revenue).toLocaleString('en-IN') : '₹0';
+    const pending = regs.filter(r => r.status === 'pending').length;
+    const badge = document.getElementById('pending-badge');
+    badge.textContent = pending || '';
+    badge.style.display = pending ? '' : 'none';
+  }
+
+  async function loadAnalytics() {
+    try {
+      const data = await EventSpot.api('/admin/reports/summary');
+      const summary = data.summary;
+      const trend = summary.dailyTrend || [];
+      const maxRevenue = Math.max(...trend.map(item => Number(item.revenue)), 1);
+      document.getElementById('analytics-revenue-trend').innerHTML = trend.map(item => {
+        const height = Math.max(4, Math.round((Number(item.revenue) / maxRevenue) * 120));
+        const day = new Date(item.day + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short' });
+        return `<div class="analytics-bar" style="height:${height}px" title="₹${Number(item.revenue).toLocaleString('en-IN')}"><span class="analytics-bar-label">${day}</span></div>`;
+      }).join('');
+
+      const trendValue = Number(summary.revenueTrend || 0);
+      const trendDirection = trendValue > 0 ? '▲' : trendValue < 0 ? '▼' : '—';
+      const trendColor = trendValue > 0 ? 'var(--success)' : trendValue < 0 ? 'var(--danger)' : 'var(--muted)';
+      document.getElementById('analytics-performance').innerHTML = `
+        <div class="analytics-top-row"><span>Paid users</span><strong>${summary.paidUsers || 0}</strong></div>
+        <div class="analytics-top-row"><span>Pending payments</span><strong>${summary.pendingPayments || 0}</strong></div>
+        <div class="analytics-top-row"><span>Revenue, 30 days</span><strong>₹${Number(summary.periodRevenue || 0).toLocaleString('en-IN')}</strong></div>
+        <div class="analytics-top-row"><span>Revenue change</span><strong style="color:${trendColor}">${trendDirection} ${Math.abs(trendValue).toFixed(1)}%</strong></div>
+        <div class="analytics-top-row"><span>New events, 30 days</span><strong>${summary.newEvents30Days || 0}</strong></div>`;
+
+      const topEvents = summary.topEvents || [];
+      document.getElementById('analytics-top-events').innerHTML = topEvents.length
+        ? topEvents.map((event, index) => `
+            <div class="analytics-top-row">
+              <span>${index + 1}. ${event.title}</span>
+              <strong>${event.bookings} booking${Number(event.bookings) === 1 ? '' : 's'}</strong>
+              <strong>₹${Number(event.revenue).toLocaleString('en-IN')}</strong>
+            </div>`).join('')
+        : '<span style="color:var(--muted);font-size:.82rem">No bookings have been confirmed yet.</span>';
+    } catch (error) {
+      document.getElementById('analytics-revenue-trend').textContent = error.message;
+      document.getElementById('analytics-performance').textContent = error.message;
+      document.getElementById('analytics-top-events').textContent = error.message;
+    }
+  }
+
+  // ── Seat bar helper ────────────────────────────────────────
+  function renderSeatBar(eventId, capacity) {
+    const { available, isFull, hasCapacity, booked, capacity: cap } = getEventSeats(eventId, capacity);
+    if (!hasCapacity) return `<span style="color:var(--muted);font-size:.78rem">—</span>`;
+
+    const pct     = Math.min(100, Math.round((booked / cap) * 100));
+    const fillCls = isFull ? 'seat-bar-full' : (available <= 10 ? 'seat-bar-low' : 'seat-bar-ok');
+    const label   = isFull
+      ? `<span style="color:var(--danger);font-weight:700"> Sold Out</span>`
+      : available <= 10
+        ? `<span style="color:var(--warn)">${available} left</span>`
+        : `<span style="color:var(--success)">${available} left</span>`;
+
+    return `
+      <div class="seat-bar-wrap">
+        <div class="seat-bar-track">
+          <div class="seat-bar-fill ${fillCls}" style="width:${pct}%"></div>
+        </div>
+        <div class="seat-bar-label">${label} &nbsp;·&nbsp; ${booked}/${cap}</div>
+      </div>`;
+  }
+
+  function getFilteredAdminEvents() {
+    const query = (document.getElementById('admin-search')?.value || '').trim().toLowerCase();
+    return allEvents.filter(e =>
+      !query || e.title.toLowerCase().includes(query) || (e.location || '').toLowerCase().includes(query)
+    );
+  }
+
+  function renderAdminEventPagination(total) {
+    const container = document.getElementById('admin-event-pagination');
+    const pageCount = Math.max(1, Math.ceil(total / ADMIN_EVENT_PAGE_SIZE));
+    adminEventPage = Math.min(Math.max(1, adminEventPage), pageCount);
+    const first = total ? (adminEventPage - 1) * ADMIN_EVENT_PAGE_SIZE + 1 : 0;
+    const last = Math.min(adminEventPage * ADMIN_EVENT_PAGE_SIZE, total);
+    container.innerHTML = `
+      <span class="admin-pagination-summary">Showing ${first}-${last} of ${total} events</span>
+      <div class="admin-pagination-controls">
+        <button class="btn btn-outline btn-sm" onclick="changeAdminEventPage(-1)" ${adminEventPage === 1 ? 'disabled' : ''} aria-label="Previous page">Previous</button>
+        <span class="admin-pagination-page">Page ${adminEventPage} of ${pageCount}</span>
+        <button class="btn btn-outline btn-sm" onclick="changeAdminEventPage(1)" ${adminEventPage === pageCount ? 'disabled' : ''} aria-label="Next page">Next</button>
+      </div>`;
+  }
+
+  function changeAdminEventPage(direction) {
+    adminEventPage += direction;
+    renderTable();
+  }
+
+  function adminEventStatusBadge(status) {
+    const value = status || 'draft';
+    const label = value.charAt(0).toUpperCase() + value.slice(1);
+    return `<span class="event-status-badge is-${value}">${label}</span>`;
+  }
+
+  // ── Admin event cards ─────────────────────────────────────
+  function renderAdminCards() {
+    const grid  = document.getElementById('admin-events-grid');
+    const regs  = LS.get('registrations') || [];
+    const list = getFilteredAdminEvents().slice((adminEventPage - 1) * ADMIN_EVENT_PAGE_SIZE, adminEventPage * ADMIN_EVENT_PAGE_SIZE);
+
+    if (!list.length) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon"></div><p>No events found.</p></div>`;
+      return;
+    }
+
+    grid.innerHTML = list.map(e => {
+      const img           = getEventImage(e);
+      const regCount      = regs.filter(r => r.eventId === e.id).length;
+      const approvedCount = regs.filter(r => r.eventId === e.id && r.status === 'approved').length;
+      const seats         = getEventSeats(e.id, e.capacity);
+
+      let seatsOverlay = '';
+      if (seats.hasCapacity) {
+        seatsOverlay = seats.isFull
+          ? `<div style="position:absolute;bottom:.6rem;left:.6rem;background:rgba(244,63,94,.9);color:#fff;font-size:.7rem;font-weight:700;padding:.2rem .5rem;border-radius:99px"> Sold Out</div>`
+          : seats.available <= 10
+            ? `<div style="position:absolute;bottom:.6rem;left:.6rem;background:rgba(251,146,60,.9);color:#fff;font-size:.7rem;font-weight:700;padding:.2rem .5rem;border-radius:99px"> ${seats.available} left</div>`
+            : `<div style="position:absolute;bottom:.6rem;left:.6rem;background:rgba(34,211,160,.85);color:#000;font-size:.7rem;font-weight:700;padding:.2rem .5rem;border-radius:99px"> ${seats.available} seats</div>`;
+      }
+
+      return `
+        <div class="card event-card">
+          <div style="position:relative">
+            <img class="event-img" src="${img}" alt="${e.title}"
+              onerror="this.src='https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=600&q=80'" loading="lazy" />
+            <div style="position:absolute;top:.6rem;left:.6rem;display:flex;gap:.3rem;flex-wrap:wrap">
+              ${catBadge(e.category)}
+              ${adminEventStatusBadge(e.status)}
+            </div>
+            <div style="position:absolute;top:.6rem;right:.6rem;background:rgba(0,0,0,.7);color:#fff;font-size:.72rem;font-weight:700;padding:.2rem .5rem;border-radius:99px">
+              ${regCount} booked
+            </div>
+            ${seatsOverlay}
+          </div>
+          <div class="event-card-body">
+            <h3>${e.title}</h3>
+            <div class="event-meta">
+              <span> ${formatDate(e.date)}</span>
+              <span> ${e.location}</span>
+              ${seats.hasCapacity ? `<span> ${seats.capacity} capacity</span>` : ''}
+            </div>
+            <div class="card-actions">
+              <span style="font-size:.9rem;font-weight:700;color:${!e.price || e.price===0 ? 'var(--success)' : 'var(--accent2)'}">
+                ${!e.price || e.price === 0 ? 'Free' : '₹' + Number(e.price).toLocaleString('en-IN')}
+              </span>
+              <div style="display:flex;gap:.4rem;margin-left:auto">
+                ${e.price > 0 ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();viewEventQr('${e.id}')" title="Dynamic Payment QR for ₹${e.price}"> QR</button>` : ''}
+                <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();startEdit('${e.id}')"> Edit</button>
+                <button class="btn btn-danger btn-sm" title="Archive event" aria-label="Archive ${e.title}" onclick="event.stopPropagation();promptDelete('${e.id}','${e.title.replace(/'/g, "\\'")}')">Archive</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ── Events table ──────────────────────────────────────────
+  function renderTable() {
+    const regs  = LS.get('registrations') || [];
+    const filtered = getFilteredAdminEvents();
+    renderAdminEventPagination(filtered.length);
+    const offset = (adminEventPage - 1) * ADMIN_EVENT_PAGE_SIZE;
+    const list = filtered.slice(offset, offset + ADMIN_EVENT_PAGE_SIZE);
+
+    const tbody = document.getElementById('events-tbody');
+    if (!list.length) {
+      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:2rem">No events found.</td></tr>`;
+      renderAdminCards(); return;
+    }
+
+    tbody.innerHTML = list.map((e, i) => {
+      const img           = getEventImage(e);
+      const regCount      = regs.filter(r => r.eventId === e.id).length;
+      const approvedCount = regs.filter(r => r.eventId === e.id && r.status === 'approved').length;
+
+      return `
+        <tr>
+          <td style="color:var(--muted)">${offset + i + 1}</td>
+          <td>
+            <img src="${img}" alt="" style="width:60px;height:42px;object-fit:cover;border-radius:6px;background:var(--surface2)"
+              onerror="this.src='https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=300&q=60'" />
+          </td>
+          <td><strong>${e.title}</strong></td>
+          <td>${catBadge(e.category)}</td>
+          <td style="white-space:nowrap">${formatDate(e.date)}</td>
+          <td>${adminEventStatusBadge(e.status)}</td>
+          <td style="font-weight:600;color:var(--accent2)">${e.price > 0 ? '₹' + Number(e.price).toLocaleString('en-IN') : '<span style="color:var(--success)">Free</span>'}</td>
+          <td>${renderSeatBar(e.id, e.capacity)}</td>
+          <td>
+            <span style="font-size:.8rem">
+              <strong style="color:var(--accent2)">${approvedCount}</strong>
+              <span style="color:var(--muted)"> / ${regCount}</span>
+            </span>
+          </td>
+          <td>
+            <div class="action-btns">
+              ${e.price > 0 ? `<button class="btn btn-outline btn-sm" onclick="viewEventQr('${e.id}')" title="Dynamic Payment QR for ₹${e.price}"> QR</button>` : ''}
+              <button class="btn btn-outline btn-sm" onclick="startEdit('${e.id}')"> Edit</button>
+              <button class="btn btn-danger btn-sm" title="Archive event" aria-label="Archive ${e.title}" onclick="promptDelete('${e.id}','${e.title.replace(/'/g, "\\'")}')">Archive</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    renderAdminCards();
+  }
+
+  // ── Registrations table ────────────────────────────────────
+  function renderRegistrations() {
+    const regs   = LS.get('registrations') || [];
+    const query  = (document.getElementById('reg-search').value || '').toLowerCase();
+    const status = document.getElementById('reg-filter-status').value;
+
+    const filtered = regs.filter(r => {
+      if (status && r.status !== status) return false;
+      if (query && !r.username.toLowerCase().includes(query) && !r.eventTitle.toLowerCase().includes(query)) return false;
+      return true;
+    }).sort((a, b) => new Date(b.paidAt) - new Date(a.paidAt));
+
+    const tbody = document.getElementById('reg-tbody');
+
+    if (!filtered.length) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:2.5rem">No registrations found.</td></tr>`;
+      updateStats(); return;
+    }
+
+    tbody.innerHTML = filtered.map((r, i) => {
+      const evt = allEvents.find(e => e.id === r.eventId);
+      const img = evt ? getEventImage(evt) : '';
+
+      const statusHtml = `<span class="status-${r.status}">${
+        r.status === 'pending' ? (r.paymentReference ? 'Payment submitted' : 'Pending') : r.status === 'approved' ? 'Approved' : 'Rejected'
+      }</span>`;
+
+      const actionBtns = r.status === 'pending' ? `
+        <button class="btn btn-success btn-sm" onclick="approveReg('${r.id}')" ${r.amount > 0 && !r.paymentReference ? 'disabled title="Waiting for the buyer to submit a payment reference"' : ''}>${r.amount > 0 ? 'Verify & confirm' : 'Confirm'}</button>
+        <button class="btn btn-danger btn-sm" onclick="rejectReg('${r.id}')">Reject</button>
+      ` : `
+        <span style="color:var(--muted)">—</span>
+      `;
+
+      const date = r.paidAt ? new Date(r.paidAt).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) : '—';
+
+      return `
+        <tr>
+          <td style="color:var(--muted)">${i + 1}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:.5rem">
+              <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;color:#fff;flex-shrink:0">
+                ${r.username[0].toUpperCase()}
+              </div>
+              <strong style="color:var(--accent2)">${r.username}</strong>
+            </div>
+          </td>
+          <td>
+            <div class="reg-event-cell">
+              ${img ? `<img class="reg-event-thumb" src="${img}" alt="" onerror="this.style.display='none'" loading="lazy" />` : ''}
+              <span style="font-size:.88rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.eventTitle}</span>
+            </div>
+          </td>
+          <td style="font-weight:600">${r.amount > 0 ? '<span style="color:var(--success)">₹' + Number(r.amount).toLocaleString('en-IN') + '</span>' : '<span style="color:var(--muted)">Free</span>'}</td>
+          <td style="font-size:.78rem;color:var(--muted);font-family:monospace">${r.paymentId || '—'}</td>
+          <td style="font-size:.78rem;color:var(--muted);font-family:monospace">${r.paymentReference || '—'}</td>
+          <td style="white-space:nowrap;color:var(--muted)">${date}</td>
+          <td>${statusHtml}</td>
+          <td>
+            <div class="action-btns">${actionBtns}</div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    updateStats();
+  }
+
+  async function approveReg(id) {
+    try {
+      await EventSpot.api(`/admin/bookings/${id}/confirm`, { method: 'POST', body: '{}' });
+      await EventSpot.refresh();
+      allEvents = await fetchEvents();
+      renderRegistrations();
+      renderTable();
+      showToast('Payment verified and booking confirmed.', 'success');
+    } catch (error) {
+      showToast(error.message, 'error');
+    }
+  }
+
+  async function rejectReg(id) {
+    try {
+      await EventSpot.api(`/admin/bookings/${id}/cancel`, { method: 'POST', body: '{}' });
+      await EventSpot.refresh();
+      allEvents = await fetchEvents();
+      renderRegistrations();
+      renderTable();
+      showToast('Booking cancelled.', 'info');
+    } catch (error) {
+      showToast(error.message, 'error');
+    }
+  }
+
+  async function loadPaymentQr() {
+    const preview = document.getElementById('payment-qr-preview');
+    try {
+      const settings = await EventSpot.api('/payment-qr');
+      document.getElementById('payment-upi-id').value = settings.upiId || 'pprajwaldeshpande-1@okicici';
+      document.getElementById('payment-payee-name').value = settings.payeeName || 'Prajwal Deshpande';
+      preview.innerHTML = settings.imagePath
+        ? `<img src="${settings.imagePath}" alt="Current shared UPI payment QR" style="max-width:100%;max-height:320px;object-fit:contain;background:#fff;padding:8px;border-radius:8px" />`
+        : 'No payment QR uploaded';
+    } catch (error) {
+      preview.textContent = error.message;
+    }
+  }
+
+  async function savePaymentSettings() {
+    const button = document.getElementById('payment-settings-save');
+    const upiId = (document.getElementById('payment-upi-id')?.value || '').trim();
+    const payeeName = (document.getElementById('payment-payee-name')?.value || '').trim() || 'Prajwal Deshpande';
+    if (!upiId) { showToast('Enter your UPI ID.', 'error'); return; }
+    button.disabled = true;
+    try {
+      await EventSpot.api('/admin/payment-settings', {
+        method: 'POST',
+        body: JSON.stringify({ upiId, payeeName })
+      });
+      showToast('UPI payment details saved. Amount is generated from each booking.', 'success');
+      if (document.getElementById('dynamic-qr-tester-result')?.style.display !== 'none') {
+        const customVal = parseFloat(document.getElementById('test-custom-amount')?.value) || 500;
+        testDynamicQr(customVal);
+      }
+    } catch (error) {
+      showToast(error.message, 'error');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  function testDynamicQr(amount) {
+    const val = parseFloat(amount);
+    if (!val || val <= 0) {
+      showToast('Enter a valid amount greater than 0.', 'error');
+      return;
+    }
+    const upiId = document.getElementById('payment-upi-id')?.value.trim() || 'pprajwaldeshpande-1@okicici';
+    const payee = document.getElementById('payment-payee-name')?.value.trim() || 'Prajwal Deshpande';
+    const upiUri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payee)}&am=${val.toFixed(2)}&cu=INR&tn=${encodeURIComponent('Test Payment ' + val)}`;
+    const resultBox = document.getElementById('dynamic-qr-tester-result');
+    resultBox.style.display = 'block';
+    resultBox.innerHTML = `
+      <div style="display:inline-block;background:var(--surface2);border-radius:99px;padding:.3rem .9rem;font-size:.85rem;font-weight:700;color:var(--accent2);margin-bottom:.75rem">
+        Test Dynamic QR: ₹${val.toLocaleString('en-IN')}
+      </div>
+      <div style="margin:0 auto .75rem;text-align:center">
+        <img src="./api/payments/upi-qr?amount=${val}&note=Test+Payment&t=${Date.now()}"
+          alt="Test UPI QR for ₹${val}"
+          style="width:200px;height:200px;object-fit:contain;background:#fff;padding:10px;border-radius:10px;border:2px solid var(--accent);display:block;margin:0 auto" />
+      </div>
+      <div style="font-size:.82rem;color:var(--muted);margin-bottom:.5rem">
+        Receiver: <strong style="color:var(--accent2)">${upiId}</strong> (${payee}) · Amount prefilled: <strong style="color:var(--success)">₹${val.toLocaleString('en-IN')}</strong>
+      </div>
+      <div style="background:var(--surface2);padding:.5rem;border-radius:4px;font-family:monospace;font-size:.72rem;word-break:break-all;color:var(--text);margin-bottom:.75rem">
+        ${upiUri}
+      </div>
+      <div style="display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="navigator.clipboard.writeText('${upiUri}').then(() => showToast('Test UPI Link copied!', 'success'))">Copy UPI Link</button>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('dynamic-qr-tester-result').style.display='none'">Hide Test QR</button>
+      </div>
+    `;
+    resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function testCustomDynamicQr() {
+    const val = document.getElementById('test-custom-amount')?.value;
+    testDynamicQr(val);
+  }
+
+  function viewEventQr(id) {
+    const e = allEvents.find(ev => ev.id === id);
+    if (!e) return;
+    const price = Number(e.price) || 0;
+    if (price <= 0) {
+      showToast('This is a free event — no payment QR needed.', 'info');
+      return;
+    }
+    const upiId = document.getElementById('payment-upi-id')?.value.trim() || 'pprajwaldeshpande-1@okicici';
+    const payee = document.getElementById('payment-payee-name')?.value.trim() || 'Prajwal Deshpande';
+    const cleanTitle = e.title.replace(/[^A-Za-z0-9 ]/g, '').substring(0, 25);
+    const upiUri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payee)}&am=${price.toFixed(2)}&cu=INR&tn=${encodeURIComponent('Event ' + cleanTitle)}`;
+
+    document.getElementById('eqr-modal-title').textContent = `${e.title} — Payment QR`;
+    document.getElementById('eqr-modal-body').innerHTML = `
+      <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:1rem;margin-bottom:1rem;text-align:center">
+        <div style="font-size:1.6rem;font-weight:700;color:var(--accent2);margin-bottom:.2rem">₹${price.toLocaleString('en-IN')}</div>
+        <div style="font-size:.85rem;color:var(--muted)">Pre-filled Ticket Amount for this Event</div>
+      </div>
+      <div style="text-align:center;margin-bottom:1rem">
+        <img src="./api/payments/upi-qr?eventId=${encodeURIComponent(e.id)}&t=${Date.now()}"
+          alt="UPI QR for ${e.title} ₹${price}"
+          style="width:230px;height:230px;object-fit:contain;background:#fff;padding:12px;border-radius:12px;border:2px solid var(--accent);box-shadow:0 4px 16px rgba(124,92,252,.15);display:block;margin:0 auto" />
+        <div style="font-size:.78rem;color:var(--muted);margin-top:.6rem">
+          Scannable by Google Pay, PhonePe, Paytm, BHIM, and any UPI app
+        </div>
+      </div>
+      <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:.85rem;text-align:left;font-size:.82rem;margin-bottom:1rem">
+        <div style="display:flex;justify-content:space-between;margin-bottom:.35rem">
+          <span style="color:var(--muted)">Receiver UPI ID:</span>
+          <strong style="color:var(--accent2);font-family:monospace">${upiId}</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:.35rem">
+          <span style="color:var(--muted)">Payee Name:</span>
+          <strong>${payee}</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span style="color:var(--muted)">Amount:</span>
+          <strong style="color:var(--success)">₹${price.toLocaleString('en-IN')}</strong>
+        </div>
+      </div>
+      <div style="display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="navigator.clipboard.writeText('${upiUri}').then(() => showToast('UPI link copied!', 'success'))">Copy UPI Link</button>
+        <a class="btn btn-primary btn-sm" href="./api/payments/upi-qr?eventId=${encodeURIComponent(e.id)}" download="Spearing-Events-${e.title.replace(/\\s+/g,'-')}-₹${price}-QR.png">Download QR</a>
+        <button class="btn btn-outline btn-sm" onclick="closeEventQrModal()">Close</button>
+      </div>
+    `;
+    document.getElementById('event-qr-modal').classList.add('open');
+  }
+
+  function closeEventQrModal() {
+    document.getElementById('event-qr-modal').classList.remove('open');
+  }
+
+  async function uploadPaymentQr() {
+    const input = document.getElementById('payment-qr-file');
+    const file = input.files?.[0];
+    if (!file) { showToast('Choose a QR image first.', 'error'); return; }
+    const form = new FormData();
+    form.append('qr', file);
+    const button = document.getElementById('payment-qr-upload');
+    button.disabled = true;
+    try {
+      await EventSpot.api('/admin/payment-qr', { method: 'POST', body: form });
+      input.value = '';
+      await loadPaymentQr();
+      showToast('Shared payment QR uploaded.', 'success');
+    } catch (error) {
+      showToast(error.message, 'error');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  // ── Users tab ──────────────────────────────────────────────
+  function renderUsers() {
+    const users = LS.get('users') || [];
+    const regs  = LS.get('registrations') || [];
+    const query = (document.getElementById('user-search')?.value || '').toLowerCase();
+    const sort  = document.getElementById('user-sort')?.value || 'name';
+    const grid  = document.getElementById('user-card-grid');
+    const emptyNotice = document.getElementById('user-empty-notice');
+
+    // Show helpful notice if no users at all
+    if (users.length === 0) {
+      emptyNotice.style.display = '';
+      grid.innerHTML = `
+        <div class="empty-state" style="grid-column:1/-1">
+          <div class="icon"></div>
+          <p>No users registered yet.</p>
+          <p style="font-size:.8rem;margin-top:.5rem">Users will appear here once they sign up.</p>
+        </div>`;
+      updateStats();
+      return;
+    }
+    emptyNotice.style.display = 'none';
+
+    let list = users.filter(u =>
+      !query || u.username.toLowerCase().includes(query) || (u.email || '').toLowerCase().includes(query)
+    );
+
+    if (sort === 'name')     list.sort((a, b) => a.username.localeCompare(b.username));
+    if (sort === 'bookings') list.sort((a, b) =>
+      regs.filter(r => r.username === b.username).length - regs.filter(r => r.username === a.username).length
+    );
+    if (sort === 'recent') {
+      // Sort by most recently booked
+      list.sort((a, b) => {
+        const latA = regs.filter(r => r.username === a.username).sort((x,y) => new Date(y.paidAt) - new Date(x.paidAt))[0];
+        const latB = regs.filter(r => r.username === b.username).sort((x,y) => new Date(y.paidAt) - new Date(x.paidAt))[0];
+        return (latB ? new Date(latB.paidAt) : 0) - (latA ? new Date(latA.paidAt) : 0);
+      });
+    }
+
+    if (!list.length) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon"></div><p>No users match your search.</p></div>`;
+      return;
+    }
+
+    grid.innerHTML = list.map(u => {
+      const userRegs  = regs.filter(r => r.username === u.username);
+      const approved  = userRegs.filter(r => r.status === 'approved').length;
+      const pending   = userRegs.filter(r => r.status === 'pending').length;
+      const rejected  = userRegs.filter(r => r.status === 'rejected').length;
+      const totalPaid = userRegs.filter(r => r.status === 'approved').reduce((s, r) => s + (r.amount || 0), 0);
+      const initials  = u.username.slice(0, 2).toUpperCase();
+
+      // Recent bookings thumbnails (up to 3)
+      const recentBookings = [...userRegs].reverse().slice(0, 3);
+
+      const thumbsHtml = recentBookings.length ? `
+        <div style="display:flex;gap:.4rem;margin-bottom:.85rem;flex-wrap:wrap">
+          ${recentBookings.map(r => {
+            const evt = (allEvents || []).find(e => e.id === r.eventId);
+            const img = evt ? getEventImage(evt) : '';
+            const statusDot = r.status === 'approved' ? '' : r.status === 'rejected' ? '' : '';
+            if (!img) return `
+              <div style="position:relative;width:48px;height:36px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:.8rem" title="${r.eventTitle} · ${r.status}">
+                <span style="position:absolute;top:-4px;right:-4px;font-size:.7rem">${statusDot}</span>
+              </div>`;
+            return `
+              <div style="position:relative" title="${r.eventTitle} · ${r.status}">
+                <img src="${img}" alt="${r.eventTitle}"
+                  style="width:48px;height:36px;object-fit:cover;border-radius:5px;border:1px solid var(--border)"
+                  onerror="this.style.display='none'" loading="lazy" />
+                <span style="position:absolute;top:-4px;right:-4px;font-size:.7rem">${statusDot}</span>
+              </div>`;
+          }).join('')}
+          ${userRegs.length > 3 ? `
+            <div style="width:48px;height:36px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:.72rem;color:var(--muted);font-weight:700">
+              +${userRegs.length - 3}
+            </div>` : ''}
+        </div>` : '<div style="margin-bottom:.85rem;font-size:.8rem;color:var(--muted)">No bookings yet.</div>';
+
+      return `
+        <div class="user-card" onclick="openUserModal('${u.username}')" style="cursor:pointer">
+          <div class="user-card-head">
+            <div class="user-avatar">${initials}</div>
+            <div>
+              <div class="user-card-name"> ${u.username}</div>
+              <div class="user-card-email">${u.email || 'No email'}</div>
+            </div>
+          </div>
+
+          ${thumbsHtml}
+
+          <div class="user-card-stats">
+            <span class="user-stat-chip chip-bookings"> ${userRegs.length} bookings</span>
+            ${approved  ? `<span class="user-stat-chip chip-approved">${approved} approved</span>` : ''}
+            ${pending   ? `<span class="user-stat-chip chip-pending"> ${pending} pending</span>` : ''}
+            ${rejected  ? `<span class="user-stat-chip" style="background:rgba(244,63,94,.12);color:var(--danger)">${rejected} rejected</span>` : ''}
+          </div>
+          ${totalPaid > 0 ? `<div style="font-size:.78rem;color:var(--success);margin-top:.5rem"> ₹${Number(totalPaid).toLocaleString('en-IN')} total paid</div>` : ''}
+          <div style="font-size:.75rem;color:var(--muted);margin-top:.35rem"> Click to view details</div>
+        </div>
+      `;
+    }).join('');
+
+    updateStats();
+  }
+
+  // ── User detail modal ──────────────────────────────────────
+  function openUserModal(username) {
+    const users = LS.get('users') || [];
+    const regs  = LS.get('registrations') || [];
+    const u     = users.find(x => x.username === username);
+    if (!u) return;
+
+    const userRegs = regs.filter(r => r.username === username)
+                        .sort((a, b) => new Date(b.paidAt) - new Date(a.paidAt));
+
+    document.getElementById('umodal-title').textContent = ` ${username}'s Profile`;
+    document.getElementById('umodal-body').innerHTML = `
+      <div style="margin-bottom:1.5rem">
+        <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem">
+          <div class="user-avatar" style="width:56px;height:56px;font-size:1.4rem">${username.slice(0,2).toUpperCase()}</div>
+          <div>
+            <div style="font-size:1.1rem;font-weight:700">${username}</div>
+            <div style="color:var(--muted);font-size:.88rem">${u.email || 'No email'}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+          <span class="user-stat-chip chip-bookings"> ${userRegs.length} total bookings</span>
+          <span class="user-stat-chip chip-approved">${userRegs.filter(r=>r.status==='approved').length} approved</span>
+          <span class="user-stat-chip chip-pending"> ${userRegs.filter(r=>r.status==='pending').length} pending</span>
+          ${userRegs.filter(r=>r.status==='rejected').length ? `<span class="user-stat-chip" style="background:rgba(244,63,94,.12);color:var(--danger)">${userRegs.filter(r=>r.status==='rejected').length} rejected</span>` : ''}
+        </div>
+      </div>
+
+      <h4 style="margin-bottom:.85rem;color:var(--muted);font-size:.85rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Booking History</h4>
+
+      ${!userRegs.length
+        ? `<div class="empty-state"><div class="icon"></div><p>No bookings yet.</p></div>`
+        : userRegs.map(r => {
+            const evt = allEvents.find(e => e.id === r.eventId);
+            const img = evt ? getEventImage(evt) : '';
+            const statusCls = r.status === 'approved' ? 'status-approved' : r.status === 'rejected' ? 'status-rejected' : 'status-pending';
+            const statusLbl = r.status === 'approved' ? 'Approved' : r.status === 'rejected' ? 'Rejected' : 'Pending';
+            const date = r.paidAt ? new Date(r.paidAt).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) : '';
+
+            return `
+              <div style="display:flex;gap:.75rem;align-items:center;padding:.85rem 0;border-bottom:1px solid var(--border)">
+                ${img ? `<img src="${img}" alt="${r.eventTitle}"
+                  style="width:70px;height:50px;object-fit:cover;border-radius:6px;flex-shrink:0"
+                  onerror="this.style.display='none'" loading="lazy" />` : ''}
+                <div style="flex:1;min-width:0">
+                  <div style="font-weight:600;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.eventTitle}</div>
+                  <div style="font-size:.78rem;color:var(--muted)">${date} · ${r.amount > 0 ? '₹'+Number(r.amount).toLocaleString('en-IN') : 'Free'}</div>
+                  <div style="font-size:.75rem;color:var(--muted);font-family:monospace">${r.paymentId}</div>
+                </div>
+                <span class="${statusCls}" style="flex-shrink:0">${statusLbl}</span>
+              </div>
+            `;
+          }).join('')
+      }
+    `;
+
+    document.getElementById('user-modal').classList.add('open');
+  }
+
+  function closeUserModal() {
+    document.getElementById('user-modal').classList.remove('open');
+  }
+  document.getElementById('user-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeUserModal();
+  });
+
+  // ── Image preview in sidebar ───────────────────────────────
+  function previewEventImages(files) {
+    const wrap = document.getElementById('img-preview-wrap');
+    const images = Array.from(files || []);
+    if (images.length > 5) { showToast('Choose no more than 5 event images.', 'error'); return; }
+    if (!images.length) { wrap.innerHTML = ''; return; }
+    wrap.innerHTML = images.map(file => `<img src="${URL.createObjectURL(file)}" alt="Selected event photo preview" />`).join('');
+  }
+
+  // ── Add / Edit form ────────────────────────────────────────
+  async function submitForm() {
+    const editId   = document.getElementById('edit-id').value;
+    const title    = document.getElementById('f-title').value.trim();
+    const desc     = document.getElementById('f-desc').value.trim();
+    const date     = document.getElementById('f-date').value;
+    const cat      = document.getElementById('f-cat').value;
+    const location = document.getElementById('f-location').value.trim();
+    const price    = document.getElementById('f-price').value;
+    const capacity = document.getElementById('f-capacity').value;
+    const images   = document.getElementById('f-images').files;
+    const lat      = document.getElementById('f-lat').value;
+    const lon      = document.getElementById('f-lon').value;
+
+    if (!title || !desc || !date || !cat || !location) {
+      showToast('Add the title, full description, date, category, and location.', 'error'); return;
+    }
+    if (images.length > 5 || Array.from(images).some(file => file.size > 5 * 1024 * 1024)) {
+      showToast('Choose up to 5 images, each smaller than 5 MB.', 'error'); return;
+    }
+
+    const payload = {
+      title, description: desc, date, category: cat, location,
+      price: parseFloat(price) || 0,
+      capacity: parseInt(capacity) || 0,
+      latitude: parseFloat(lat) || 0,
+      longitude: parseFloat(lon) || 0
+    };
+
+    try {
+      if (editId) {
+        const res = await editEventAPI(editId, payload);
+        if (!res.success) throw new Error(res.message);
+        if (images.length) await EventSpot.uploadEventImages(editId, images);
+        showToast('Event updated!', 'success');
+        resetForm();
+      } else {
+        const res = await addEventAPI(payload);
+        if (!res.success) throw new Error(res.message);
+        if (images.length) await EventSpot.uploadEventImages(res.event.id, images);
+        showToast('Event added!', 'success');
+        resetForm();
+      }
+      allEvents = await EventSpot.adminEvents();
+      renderTable();
+      updateStats();
+    } catch (err) {
+      showToast(err.message || 'Server error.', 'error');
+    }
+  }
+
+  function updatePriceQrHint() {
+    const priceVal = parseFloat(document.getElementById('f-price')?.value) || 0;
+    const tag = document.getElementById('price-qr-preview-tag');
+    if (!tag) return;
+    if (priceVal > 0) {
+      tag.textContent = `₹${priceVal.toLocaleString('en-IN')} (Auto-generated payment QR)`;
+      tag.style.color = 'var(--accent2)';
+    } else {
+      tag.textContent = '₹0 (Free — no QR required)';
+      tag.style.color = 'var(--success)';
+    }
+  }
+
+  function startEdit(id) {
+    const e = allEvents.find(ev => ev.id === id);
+    if (!e) return;
+    document.getElementById('edit-id').value    = e.id;
+    document.getElementById('f-title').value    = e.title;
+    document.getElementById('f-desc').value     = e.description || '';
+    document.getElementById('f-date').value     = e.date;
+    document.getElementById('f-cat').value      = e.category;
+    document.getElementById('f-location').value = e.location;
+    document.getElementById('f-price').value    = e.price || 0;
+    document.getElementById('f-capacity').value = e.capacity || '';
+    document.getElementById('f-lat').value      = e.latitude || '';
+    document.getElementById('f-lon').value      = e.longitude || '';
+    updatePriceQrHint();
+    const preview = document.getElementById('img-preview-wrap');
+    preview.innerHTML = e.image ? `<img src="${e.image.replace(/^\/+/, '')}" alt="Current event cover photo" />` : 'Photo preview';
+    document.getElementById('form-title').textContent    = 'Update event';
+    document.getElementById('submit-btn').textContent    = 'Save changes';
+    document.getElementById('cancel-btn').style.display  = '';
+    document.querySelector('.admin-sidebar').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function resetForm() {
+    ['edit-id','f-title','f-desc','f-date','f-location','f-lat','f-lon','f-price','f-capacity','f-images'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    document.getElementById('f-cat').value = '';
+    document.getElementById('form-title').textContent    = 'Create event';
+    document.getElementById('submit-btn').textContent    = 'Create event';
+    document.getElementById('cancel-btn').style.display  = 'none';
+    document.getElementById('img-preview-wrap').textContent = 'Photo preview';
+    updatePriceQrHint();
+  }
+
+  // ── Delete flow ────────────────────────────────────────────
+  function promptDelete(id, title) {
+    deleteTarget = id;
+    document.getElementById('confirm-msg').textContent =
+      `Archive "${title}"? It will be removed from public listings while existing booking records are preserved.`;
+    document.getElementById('confirm-modal').classList.add('open');
+  }
+
+  function closeConfirm() {
+    document.getElementById('confirm-modal').classList.remove('open');
+    deleteTarget = null;
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    try {
+      const res = await deleteEventAPI(deleteTarget);
+      if (!res.success) throw new Error(res.message);
+      allEvents = allEvents.filter(e => e.id !== deleteTarget);
+      showToast('Event archived and removed from public listings.', 'info');
+      renderTable();
+      updateStats();
+    } catch (err) {
+      showToast(err.message || 'Delete failed.', 'error');
+    }
+    closeConfirm();
+  }
+
+  document.getElementById('confirm-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeConfirm();
+  });
+  document.getElementById('event-qr-modal')?.addEventListener('click', function(e) {
+    if (e.target === this) closeEventQrModal();
+  });
+  updatePriceQrHint();
+</script>
+</body>
+</html>

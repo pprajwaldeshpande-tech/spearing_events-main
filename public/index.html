@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spearing Events — Discover Local Events</title>
+  <link rel="stylesheet" href="style.css?v=8" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    footer { text-align: center; padding: 2rem; border-top: 1px solid var(--border); font-size: .82rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="logo"> <span>Spearing</span> Events</div>
+  <ul class="nav-links" id="nav-links">
+    <li><a href="index.html?home=member-cta-2" class="active">Home</a></li>
+  </ul>
+</nav>
+
+<section class="hero">
+  <h1>Discover Events<br>Happening Near You</h1>
+  <p>Find concerts, tech meetups, food festivals, workshops, and more — all in one place. Free to join.</p>
+  <div class="hero-actions">
+    <a href="signup.html"><button class="btn btn-primary">Get Started →</button></a>
+    <a href="#events"><button class="btn btn-outline">Browse Events</button></a>
+  </div>
+</section>
+
+<div class="stat-bar" id="stat-bar">
+  <div class="stat"><div class="num" id="stat-events">—</div><div class="lbl">Events</div></div>
+  <div class="stat"><div class="num" id="stat-cats">—</div><div class="lbl">Categories</div></div>
+  <div class="stat"><div class="num" title="Karnataka">KA</div><div class="lbl">Bengaluru, Karnataka</div></div>
+</div>
+
+<div class="features">
+  <div class="feature-card">
+    <h3>Smart Search</h3>
+    <p>Filter events by name, location, category, or date to find exactly what you want.</p>
+  </div>
+  <div class="feature-card">
+    <h3>Nearby Events</h3>
+    <p>See events sorted by distance from your location with real km indicators.</p>
+  </div>
+  <div class="feature-card">
+    <h3>UPI Payments</h3>
+    <p>Pay using the event organizer's shared UPI QR. Paid bookings are confirmed only after an admin verifies the transaction.</p>
+  </div>
+  <div class="feature-card">
+    <h3>Admin Approval</h3>
+    <p>Admins review payment references before confirming paid bookings and issuing entry tickets.</p>
+  </div>
+</div>
+
+<div class="preview-section" id="events">
+  <div class="section-head">
+    <h2>Upcoming Events</h2>
+    <a href="#events"><button class="btn btn-outline btn-sm">View events →</button></a>
+  </div>
+  <div class="events-grid" id="preview-grid">
+    <div class="empty-state"><div class="icon"></div><p>Loading events…</p></div>
+  </div>
+</div>
+
+<section class="location-explorer" aria-labelledby="location-explorer-title">
+  <div class="location-explorer-heading">
+    <div>
+      <p class="map-eyebrow">Explore anywhere</p>
+      <h2 id="location-explorer-title">Find your next place</h2>
+      <p>Search for cities, neighbourhoods, and landmarks, or view your location on this device.</p>
+    </div>
+    <span id="map-user-label" class="map-user-label" hidden></span>
+  </div>
+  <form id="map-search-form" class="map-search" role="search">
+    <label class="visually-hidden" for="map-search-input">Search for a city, area, landmark, or address</label>
+    <input id="map-search-input" type="search" maxlength="160" autocomplete="off" placeholder="Search a city, area, landmark, or address" />
+    <button id="map-search-submit" class="btn btn-primary" type="submit">Search map</button>
+    <button id="map-locate-button" class="btn btn-outline" type="button">Use my location</button>
+  </form>
+  <p id="map-status" class="map-status" role="status" aria-live="polite">Loading interactive map…</p>
+  <div class="location-map-layout">
+    <div id="location-map" class="location-map" role="application" aria-label="Interactive map. Use plus and minus to zoom, or drag to explore."></div>
+    <aside id="map-place-card" class="map-place-card" aria-live="polite">
+      <span class="map-place-kicker">Selected place</span>
+      <h3 id="map-place-name">Explore the map</h3>
+      <p id="map-place-city">Search for a city or landmark to see details here.</p>
+      <p id="map-place-detail" class="map-place-detail">Zoom, drag, and switch map layers to explore.</p>
+      <p id="map-location-origin" class="map-location-origin">No profile location is stored. Live GPS is used only when you request it; coordinates are sent to OpenStreetMap to label the area, but are not saved by Spearing Events or shown to other users.</p>
+    </aside>
+  </div>
+  <p class="map-attribution-note">Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a>. Place searches and requested GPS area lookups are sent to OpenStreetMap. Spearing Events does not save precise location or share it with other users.</p>
+</section>
+
+<footer>© 2026 Spearing Events · Made for Bengaluru</footer>
+<div id="toast-container"></div>
+
+<script src="shared.js?v=8"></script>
+<script src="api-client.js?v=8"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  const stateLocations = [
+    { code: 'KA', name: 'Karnataka', places: /\b(Bengaluru|Bangalore|Mysuru|Mysore|Whitefield|MG Road|Malleshwaram|Electronic City|Cubbon Park|IISc|KTPO)\b/i },
+    { code: 'MH', name: 'Maharashtra', places: /\b(Mumbai|Pune|Nagpur)\b/i },
+    { code: 'TN', name: 'Tamil Nadu', places: /\b(Chennai|Coimbatore|Madurai)\b/i },
+    { code: 'TS', name: 'Telangana', places: /\b(Hyderabad|Secunderabad)\b/i },
+    { code: 'KL', name: 'Kerala', places: /\b(Kochi|Cochin|Thiruvananthapuram|Kozhikode)\b/i },
+    { code: 'AP', name: 'Andhra Pradesh', places: /\b(Visakhapatnam|Vijayawada|Tirupati)\b/i },
+    { code: 'DL', name: 'Delhi', places: /\b(Delhi|New Delhi)\b/i },
+    { code: 'WB', name: 'West Bengal', places: /\b(Kolkata|Darjeeling)\b/i },
+    { code: 'GJ', name: 'Gujarat', places: /\b(Ahmedabad|Surat|Vadodara)\b/i },
+    { code: 'RJ', name: 'Rajasthan', places: /\b(Jaipur|Udaipur|Jodhpur)\b/i },
+    { code: 'UP', name: 'Uttar Pradesh', places: /\b(Lucknow|Noida|Agra|Varanasi)\b/i },
+    { code: 'OD', name: 'Odisha', places: /\b(Bhubaneswar|Cuttack)\b/i },
+    { code: 'MP', name: 'Madhya Pradesh', places: /\b(Bhopal|Indore)\b/i },
+    { code: 'AS', name: 'Assam', places: /\b(Guwahati)\b/i },
+    { code: 'PB', name: 'Punjab', places: /\b(Amritsar|Ludhiana)\b/i },
+    { code: 'HR', name: 'Haryana', places: /\b(Gurugram|Gurgaon)\b/i },
+    { code: 'GA', name: 'Goa', places: /\b(Goa|Panaji)\b/i }
+  ];
+
+  function getStateBadge(location) {
+    const state = stateLocations.find(item => item.places.test(location));
+    return state ? `<span class="location-state-badge" title="${state.name}" aria-label="${state.name}">${state.code}</span>` : '';
+  }
+
+  function renderHomeSession(user) {
+    const nav = document.getElementById('nav-links');
+    if (user) {
+      const displayName = user.full_name || user.username;
+      nav.innerHTML = `
+        <li><a href="index.html?home=member-cta-2" class="active">Home</a></li>
+        <li><a href="${user.role === 'admin' ? 'admin.html' : 'user.html'}">${user.role === 'admin' ? 'Admin Console' : 'Dashboard'}</a></li>
+        <li><button class="btn btn-outline btn-sm" onclick="logout()">Logout</button></li>
+      `;
+      const userLabel = document.getElementById('map-user-label');
+      userLabel.textContent = `Signed in as ${displayName}`;
+      userLabel.hidden = false;
+      window.mapProfileName = displayName;
+    } else {
+      nav.innerHTML = `
+        <li><a href="index.html?home=member-cta-2" class="active">Home</a></li>
+        <li><a href="login.html">Login</a></li>
+        <li><a href="signup.html"><button class="btn btn-primary btn-sm">Sign Up Free</button></a></li>
+      `;
+      document.getElementById('map-user-label').hidden = true;
+      window.mapProfileName = '';
+    }
+    initializeTheme();
+  }
+
+  let locationMap;
+  let liveLocationMarker;
+  let placeMarker;
+  let geocodingInProgress = false;
+  let lastGeocodingRequestAt = 0;
+  const streetTiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+  const lightTiles = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+
+  function setMapStatus(message, state = '') {
+    const status = document.getElementById('map-status');
+    status.textContent = message;
+    status.className = `map-status${state ? ` is-${state}` : ''}`;
+  }
+
+  function setMapPlace({ name, city, detail, origin }) {
+    document.getElementById('map-place-name').textContent = name;
+    document.getElementById('map-place-city').textContent = city;
+    document.getElementById('map-place-detail').textContent = detail;
+    document.getElementById('map-location-origin').textContent = origin;
+  }
+
+  function escapeMapHtml(value) {
+    return String(value).replace(/[&<>"']/g, character => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[character]);
+  }
+
+  function createUserMarkerIcon(name) {
+    const initials = name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase() || 'U';
+    return L.divIcon({
+      className: 'user-map-marker-wrap',
+      html: `<span class="user-map-marker" aria-label="${escapeMapHtml(name)}">${escapeMapHtml(initials)}</span>`,
+      iconSize: [42, 42],
+      iconAnchor: [21, 21]
+    });
+  }
+
+  function initLocationMap() {
+    if (!window.L) {
+      setMapStatus('The map could not load. Check your internet connection and reload the page.', 'error');
+      document.getElementById('map-search-submit').disabled = true;
+      document.getElementById('map-locate-button').disabled = true;
+      return;
+    }
+
+    locationMap = L.map('location-map', { zoomControl: true, scrollWheelZoom: false }).setView([20, 0], 2);
+    const streets = L.tileLayer(streetTiles, {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    });
+    const light = L.tileLayer(lightTiles, {
+      maxZoom: 20,
+      attribution: '&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    });
+    streets.addTo(locationMap);
+    L.control.layers({ Streets: streets, Light: light }, null, { position: 'topright' }).addTo(locationMap);
+    locationMap.on('baselayerchange', () => {
+      window.setTimeout(() => locationMap.invalidateSize(), 0);
+    });
+
+    document.getElementById('map-search-form').addEventListener('submit', searchMapPlace);
+    document.getElementById('map-locate-button').addEventListener('click', locateMapUser);
+    setMapStatus('Map ready. Search for a place or choose Use my location.');
+  }
+
+  async function maybeLocateWithExistingPermission() {
+    if (!navigator.permissions?.query) return;
+    try {
+      const permission = await navigator.permissions.query({ name: 'geolocation' });
+      if (permission.state === 'granted') locateMapUser();
+    } catch (error) {
+      console.info('Location permission state is not available; waiting for the user to request location.', error);
+    }
+  }
+
+  function locateMapUser() {
+    if (!navigator.geolocation) {
+      setMapStatus('Location is unavailable in this browser. Search for a city or landmark instead.', 'error');
+      return;
+    }
+    const button = document.getElementById('map-locate-button');
+    button.disabled = true;
+    setMapStatus('Waiting for your device location permission…', 'loading');
+    navigator.geolocation.getCurrentPosition(async position => {
+      const { latitude, longitude } = position.coords;
+      const displayName = window.mapProfileName || 'Your location';
+      const markerLabel = window.mapProfileName ? `${displayName} - live location` : 'Your live location';
+      locationMap.setView([latitude, longitude], 14);
+      if (liveLocationMarker) liveLocationMarker.remove();
+      liveLocationMarker = L.marker([latitude, longitude], { icon: createUserMarkerIcon(displayName), title: markerLabel })
+        .addTo(locationMap)
+        .bindTooltip(escapeMapHtml(markerLabel), { direction: 'top', offset: [0, -18] });
+      setMapPlace({
+        name: markerLabel,
+        city: 'Finding nearby area…',
+        detail: 'Live GPS location for this visit.',
+        origin: 'Live GPS only. Coordinates are sent to OpenStreetMap to label the area; Spearing Events does not save them to your profile or show them to other users.'
+      });
+      setMapStatus('Showing your live location on this device.', 'success');
+      button.disabled = false;
+      reverseGeocodeLocation(latitude, longitude);
+    }, error => {
+      button.disabled = false;
+      const message = error.code === error.PERMISSION_DENIED
+        ? 'Location permission was denied. You can still search for any city or place.'
+        : error.code === error.TIMEOUT
+          ? 'Your device location took too long. Try again or search for a place.'
+          : 'Your device location is unavailable. Search for any city or place instead.';
+      setMapStatus(message, 'error');
+    }, { enableHighAccuracy: true, maximumAge: 60000, timeout: 15000 });
+  }
+
+  let geocodingQueue = Promise.resolve();
+  const geocodingCache = new Map();
+  function requestGeocoding(url) {
+    const request = geocodingQueue.then(async () => {
+      if (geocodingCache.has(url)) return geocodingCache.get(url);
+      const wait = Math.max(0, 1100 - (Date.now() - lastGeocodingRequestAt));
+      if (wait) await new Promise(resolve => window.setTimeout(resolve, wait));
+      lastGeocodingRequestAt = Date.now();
+      const response = await fetch(url, {
+        headers: { Accept: 'application/json' },
+        credentials: 'omit'
+      });
+      if (!response.ok) throw new Error(`Place search returned HTTP ${response.status}.`);
+      const data = await response.json();
+      geocodingCache.set(url, data);
+      return data;
+    });
+    geocodingQueue = request.catch(() => undefined);
+    return request;
+  }
+
+  async function searchMapPlace(event) {
+    event.preventDefault();
+    const input = document.getElementById('map-search-input');
+    const query = input.value.trim();
+    if (!query) {
+      input.focus();
+      setMapStatus('Enter a city, area, landmark, or address to search.', 'error');
+      return;
+    }
+    if (geocodingInProgress) return;
+    geocodingInProgress = true;
+    document.getElementById('map-search-submit').disabled = true;
+    setMapStatus(`Searching for ${query}…`, 'loading');
+    try {
+      const params = new URLSearchParams({ q: query, format: 'jsonv2', limit: '1', addressdetails: '1' });
+      const results = await requestGeocoding(`https://nominatim.openstreetmap.org/search?${params}`);
+      const result = results[0];
+      if (!result) {
+        setMapStatus('No matching place found. Try a nearby city or a more specific search.', 'error');
+        return;
+      }
+      const latitude = Number(result.lat);
+      const longitude = Number(result.lon);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        throw new Error('The location provider returned invalid coordinates.');
+      }
+      const address = result.address || {};
+      const city = address.city || address.town || address.village || address.county || address.state || '';
+      const title = result.name || query;
+      const fullAddress = result.display_name || query;
+      locationMap.setView([latitude, longitude], Math.max(locationMap.getZoom(), 13));
+      if (placeMarker) placeMarker.remove();
+      placeMarker = L.marker([latitude, longitude], { title }).addTo(locationMap);
+      const popup = document.createElement('div');
+      const popupTitle = document.createElement('strong');
+      popupTitle.textContent = title;
+      const popupAddress = document.createElement('p');
+      popupAddress.textContent = fullAddress;
+      popup.append(popupTitle, popupAddress);
+      placeMarker.bindPopup(popup).openPopup();
+      setMapPlace({
+        name: title,
+        city: city || 'City or area',
+        detail: fullAddress,
+        origin: 'Map search result. This location is not saved to your profile.'
+      });
+      setMapStatus(`Showing ${title} on the map.`, 'success');
+    } catch (error) {
+      console.error('Map place search failed.', error);
+      setMapStatus('Place search is temporarily unavailable. Check your connection and try again.', 'error');
+    } finally {
+      geocodingInProgress = false;
+      document.getElementById('map-search-submit').disabled = false;
+    }
+  }
+
+  async function reverseGeocodeLocation(latitude, longitude) {
+    try {
+      const params = new URLSearchParams({ lat: String(latitude), lon: String(longitude), format: 'jsonv2', zoom: '10', addressdetails: '1' });
+      const result = await requestGeocoding(`https://nominatim.openstreetmap.org/reverse?${params}`);
+      const address = result.address || {};
+      const city = address.city || address.town || address.village || address.county || address.state || '';
+      document.getElementById('map-place-city').textContent = city || 'Nearby area';
+      document.getElementById('map-place-detail').textContent = result.display_name || 'Live GPS location for this visit.';
+    } catch (error) {
+      console.warn('Could not resolve a label for the live location.', error);
+      document.getElementById('map-place-city').textContent = 'Location on this device';
+      document.getElementById('map-place-detail').textContent = 'The live marker is active; an area name could not be loaded.';
+    }
+  }
+
+  (async function () {
+    await EventSpot.authReady;
+    renderHomeSession(getCurrentUser());
+    maybeLocateWithExistingPermission();
+  })();
+  initLocationMap();
+
+  window.addEventListener('pageshow', event => {
+    if (!event.persisted) return;
+    EventSpot.refreshSession()
+      .then(user => {
+        renderHomeSession(user);
+        maybeLocateWithExistingPermission();
+      })
+      .catch(error => {
+        console.error('Could not refresh the session after returning to Home.', error);
+        renderHomeSession(null);
+      });
+  });
+
+  (async function () {
+    const events = await fetchEvents();
+    document.getElementById('stat-events').textContent = events.length;
+    const cats = new Set(events.map(e => e.category).filter(Boolean));
+    document.getElementById('stat-cats').textContent = cats.size;
+
+    const grid = document.getElementById('preview-grid');
+    const show = events.slice(0, 3);
+
+    if (!show.length) {
+      grid.innerHTML = `<div class="empty-state"><div class="icon"></div><p>No events yet.</p></div>`;
+      return;
+    }
+
+    grid.innerHTML = show.map(e => {
+      const img = getEventImage(e);
+      const priceLabel = !e.price || e.price === 0
+        ? `<span class="event-price free">Free</span>`
+        : `<span class="event-price">₹${Number(e.price).toLocaleString('en-IN')}</span>`;
+
+      return `
+        <div class="card event-card">
+          <img class="event-img" src="${img}" alt="${e.title}" onerror="this.style.display='none'" loading="lazy" />
+          <div class="event-card-body">
+            ${catBadge(e.category)}
+            <h3>${e.title}</h3>
+            <div class="event-meta">
+              <span>${formatDate(e.date)}</span>
+              <span class="event-location">
+                <svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"></path>
+                  <circle cx="12" cy="10" r="2.5"></circle>
+                </svg>
+                <span>${e.location}</span>
+                ${getStateBadge(e.location)}
+              </span>
+            </div>
+            <p class="event-desc">${(e.description || '').slice(0, 90)}…</p>
+            <div class="card-actions">
+              ${priceLabel}
+              <a class="btn btn-primary btn-sm" href="event.html?id=${encodeURIComponent(e.id)}">View event →</a>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  })();
+</script>
+</body>
+</html>

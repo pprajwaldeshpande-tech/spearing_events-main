@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create User — Spearing Events</title>
+  <link rel="stylesheet" href="style.css?v=6" />
+</head>
+<body>
+<nav class="navbar">
+  <a href="index.html?home=member-cta-2" class="logo"><span>Spearing</span> Events</a>
+  <ul class="nav-links">
+    <li><a href="index.html?home=member-cta-2">Home</a></li>
+    <li><a href="login.html">Login</a></li>
+  </ul>
+</nav>
+
+<main class="auth-wrapper">
+  <section class="auth-card" aria-labelledby="signup-title">
+    <h1 id="signup-title">Create your account</h1>
+    <p class="subtitle">Join Spearing Events and start discovering events.</p>
+
+    <form id="signup-form">
+      <div class="form-group">
+        <label for="full-name">Full name</label>
+        <input type="text" id="full-name" name="fullName" autocomplete="name" maxlength="120" required />
+      </div>
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" placeholder="3-50 letters, numbers, or underscores" autocomplete="username" minlength="3" maxlength="50" pattern="[A-Za-z0-9_]{3,50}" required />
+      </div>
+      <div class="form-group">
+        <label for="email">Email address</label>
+        <input type="email" id="email" name="email" placeholder="you@example.com" autocomplete="email" maxlength="254" required />
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" placeholder="10-72 characters; include a letter and number" autocomplete="new-password" minlength="10" maxlength="72" required />
+      </div>
+      <div class="form-group">
+        <label for="confirm">Confirm password</label>
+        <input type="password" id="confirm" name="confirm" autocomplete="new-password" required />
+      </div>
+      <div class="form-group terms-field">
+        <label><input type="checkbox" id="terms" required /> I accept the Terms and Conditions.</label>
+      </div>
+      <button class="btn btn-primary" id="signup-btn" type="submit">Create account</button>
+    </form>
+    <p class="switch">Already have an account? <a id="login-link" href="login.html">Log in</a></p>
+  </section>
+</main>
+
+<div id="toast-container"></div>
+<script src="shared.js?v=7"></script>
+<script src="api-client.js?v=9"></script>
+<script>
+  function getPostSignupDestination() {
+    const destination = new URLSearchParams(window.location.search).get('return') || '';
+    return /^event\.html\?id=\d+$/.test(destination) ? destination : 'user.html';
+  }
+
+  const returnTo = new URLSearchParams(window.location.search).get('return') || '';
+  if (/^event\.html\?id=\d+$/.test(returnTo)) {
+    document.getElementById('login-link').href = `login.html?return=${encodeURIComponent(returnTo)}`;
+  }
+
+  (async function () {
+    await EventSpot.ready;
+    const user = getCurrentUser();
+    if (user) window.location.href = user.role === 'admin' ? 'admin.html' : getPostSignupDestination();
+  })();
+
+  document.getElementById('signup-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const fullName = document.getElementById('full-name').value.trim();
+    const username = document.getElementById('username').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const confirm = document.getElementById('confirm').value;
+    if (password !== confirm) {
+      showToast('Passwords do not match.', 'error');
+      document.getElementById('confirm').focus();
+      return;
+    }
+    if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+      showToast('Use a password with at least one letter and one number.', 'error');
+      document.getElementById('password').focus();
+      return;
+    }
+    const button = document.getElementById('signup-btn');
+    button.disabled = true;
+    button.textContent = 'Creating account...';
+    try {
+      await EventSpot.register(fullName, username, email, password, document.getElementById('terms').checked);
+      window.location.href = getPostSignupDestination();
+    } catch (error) {
+      showToast(error.message, 'error');
+      button.disabled = false;
+      button.textContent = 'Create account';
+    }
+  });
+</script>
+</body>
+</html>

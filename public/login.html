@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login — Spearing Events</title>
+  <link rel="stylesheet" href="style.css?v=6" />
+</head>
+<body>
+<nav class="navbar">
+  <a href="index.html?home=member-cta-2" class="logo"><span>Spearing</span> Events</a>
+  <ul class="nav-links">
+    <li><a href="index.html?home=member-cta-2">Home</a></li>
+    <li><a id="signup-nav-link" href="signup.html">Create User</a></li>
+  </ul>
+</nav>
+
+<main class="auth-wrapper">
+  <section class="auth-card" aria-labelledby="login-title">
+    <h1 id="login-title">Welcome back</h1>
+    <p class="subtitle">Log in to find and join events near you.</p>
+
+    <form id="login-form">
+      <div class="form-group">
+        <label for="username">Email address or username</label>
+        <input type="text" id="username" name="username" placeholder="you@example.com or username" autocomplete="username" required />
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" placeholder="Enter your password" autocomplete="current-password" required />
+      </div>
+      <p class="auth-options"><a href="forgot-password.html">Forgot password?</a></p>
+      <button class="btn btn-primary" id="login-btn" type="submit">Log in</button>
+    </form>
+    <p class="switch">Don't have an account? <a id="signup-link" href="signup.html">Create User</a></p>
+  </section>
+</main>
+
+<div id="toast-container"></div>
+<script src="shared.js?v=7"></script>
+<script src="api-client.js?v=9"></script>
+<script>
+  function getPostLoginDestination(user) {
+    const destination = new URLSearchParams(window.location.search).get('return') || '';
+    if (/^event\.html\?id=\d+$/.test(destination)) return destination;
+    return user.role === 'admin' ? 'admin.html' : 'user.html';
+  }
+
+  const returnTo = new URLSearchParams(window.location.search).get('return') || '';
+  if (/^event\.html\?id=\d+$/.test(returnTo)) {
+    const signupUrl = `signup.html?return=${encodeURIComponent(returnTo)}`;
+    document.getElementById('signup-link').href = signupUrl;
+    document.getElementById('signup-nav-link').href = signupUrl;
+  }
+
+  (async function () {
+    await EventSpot.ready;
+    const user = getCurrentUser();
+    if (user) window.location.href = getPostLoginDestination(user);
+  })();
+
+  document.getElementById('login-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = document.getElementById('login-btn');
+    button.disabled = true;
+    button.textContent = 'Signing in...';
+    try {
+      const user = await EventSpot.login(document.getElementById('username').value.trim(), document.getElementById('password').value);
+      window.location.href = getPostLoginDestination(user);
+    } catch (error) {
+      showToast(error.message, 'error');
+      button.disabled = false;
+      button.textContent = 'Log in';
+    }
+  });
+</script>
+</body>
+</html>
