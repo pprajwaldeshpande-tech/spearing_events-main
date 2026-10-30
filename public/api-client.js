@@ -26,7 +26,7 @@
     state.csrf = session.csrfToken;
     await loadUserData();
   };
-  const toLegacyBooking = booking => ({ ...booking, username: booking.username || state.user?.username, eventId: String(booking.event_id), eventTitle: booking.title, amount: Number(booking.total_amount), paymentId: booking.id, bookingStatus: booking.status, paymentReference: booking.payment_reference || null, paidAt: booking.created_at, status: booking.status === 'confirmed' ? 'approved' : booking.status === 'cancelled' ? 'rejected' : 'pending' });
+  const toLegacyBooking = booking => ({ ...booking, username: booking.username || state.user?.username, eventId: String(booking.event_id), eventTitle: booking.title, amount: Number(booking.total_amount), paymentId: booking.id, bookingStatus: booking.status, paymentReference: booking.payment_reference || null, paidAt: booking.created_at, status: booking.status === 'confirmed' ? 'approved' : booking.status === 'cancelled' ? 'rejected' : 'pending', tickets: booking.tickets || [] });
   const refreshEvents = async () => { state.events = (await api('/events?limit=50')).events; return state.events; };
   const authReady = api('/auth/me')
     .then(session => {

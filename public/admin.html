@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Console — Spearing Events</title>
-  <link rel="stylesheet" href="style.css?v=6" />
+  <link rel="stylesheet" href="style.css?v=10" />
   <style>
     #confirm-modal .modal { max-width: 380px; text-align: center; }
     #confirm-modal .modal p { margin: .75rem 0 1.5rem; }
@@ -20,22 +20,8 @@
     }
     #img-preview-wrap img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
 
-    .analytics-grid {
-      display:grid; grid-template-columns:minmax(0,1.6fr) minmax(280px,.8fr); gap:1rem;
-      margin: 0 0 1.5rem;
-    }
-    .analytics-card {
-      background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
-      padding:1rem;
-    }
-    .analytics-card h3 { margin:0 0 .25rem; }
-    .analytics-subtitle { color:var(--muted); font-size:.78rem; margin-bottom:.75rem; }
-    .analytics-trend { display:flex; align-items:flex-end; gap:.55rem; height:150px; padding-top:.5rem; }
-    .analytics-bar { flex:1; min-width:18px; background:var(--accent); border-radius:5px 5px 2px 2px; position:relative; }
-    .analytics-bar-label { position:absolute; top:calc(100% + .35rem); left:50%; transform:translateX(-50%); font-size:.65rem; color:var(--muted); }
     .analytics-top-row { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:.75rem; padding:.65rem 0; border-bottom:1px solid var(--border); font-size:.82rem; }
     .analytics-top-row:last-child { border-bottom:0; }
-    @media(max-width:900px) { .analytics-grid { grid-template-columns:1fr; } }
 
     .reg-event-cell { display: flex; align-items: center; gap: .6rem; }
     .reg-event-thumb {
@@ -389,8 +375,8 @@
 </div>
 
 <div id="toast-container"></div>
-<script src="shared.js?v=7"></script>
-<script src="api-client.js?v=7"></script>
+<script src="shared.js?v=10"></script>
+<script src="api-client.js?v=10"></script>
 <script>
   let allEvents    = [];
   let deleteTarget = null;
@@ -427,13 +413,19 @@
     if (name === 'registrations') renderRegistrations();
     if (name === 'payments') loadPaymentQr();
     if (name === 'users') {
-      if (!allEvents || allEvents.length === 0) {
-        document.getElementById('user-card-grid').innerHTML =
-          `<div class="empty-state" style="grid-column:1/-1"><div class="icon"></div><p>Loading user data…</p></div>`;
-        fetchEvents().then(evs => { allEvents = evs; renderUsers(); });
-      } else {
-        renderUsers();
-      }
+      refreshManagedUsers();
+    }
+  }
+
+  async function refreshManagedUsers() {
+    const grid = document.getElementById('user-card-grid');
+    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><p>Loading users…</p></div>';
+    try {
+      const data = await EventSpot.api('/admin/users');
+      EventSpot.state.users = data.users;
+      renderUsers();
+    } catch (error) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;color:var(--danger)">${error.message}</div>`;
     }
   }
 
@@ -457,13 +449,27 @@
     try {
       const data = await EventSpot.api('/admin/reports/summary');
       const summary = data.summary;
-      const trend = summary.dailyTrend || [];
+      const trend = Array.isArray(summary.dailyTrend) && summary.dailyTrend.length
+        ? summary.dailyTrend
+        : Array.from({ length: 7 }, (_, index) => {
+            const date = new Date();
+            date.setDate(date.getDate() - (6 - index));
+            return { day: date.toISOString().slice(0, 10), revenue: 0 };
+          });
       const maxRevenue = Math.max(...trend.map(item => Number(item.revenue)), 1);
-      document.getElementById('analytics-revenue-trend').innerHTML = trend.map(item => {
-        const height = Math.max(4, Math.round((Number(item.revenue) / maxRevenue) * 120));
-        const day = new Date(item.day + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short' });
-        return `<div class="analytics-bar" style="height:${height}px" title="₹${Number(item.revenue).toLocaleString('en-IN')}"><span class="analytics-bar-label">${day}</span></div>`;
-      }).join('');
+      document.getElementById('analytics-revenue-trend').innerHTML = `
+        <div class="analytics-bar-chart" role="img" aria-label="Revenue bar chart for the last 7 days">
+          ${trend.map(item => {
+            const revenue = Number(item.revenue) || 0;
+            const height = revenue > 0 ? Math.max(10, Math.round((revenue / maxRevenue) * 112)) : 4;
+            const day = new Date(item.day + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short' });
+            return `<div class="analytics-bar-column" title="${day}: ₹${revenue.toLocaleString('en-IN')}">
+              <strong class="analytics-bar-value">₹${revenue.toLocaleString('en-IN')}</strong>
+              <div class="analytics-bar-track"><span class="analytics-bar" style="height:${height}px"></span></div>
+              <span class="analytics-bar-label">${day}</span>
+            </div>`;
+          }).join('')}
+        </div>`;
 
       const trendValue = Number(summary.revenueTrend || 0);
       const trendDirection = trendValue > 0 ? '▲' : trendValue < 0 ? '▼' : '—';
@@ -762,7 +768,7 @@
       document.getElementById('payment-upi-id').value = settings.upiId || 'pprajwaldeshpande-1@okicici';
       document.getElementById('payment-payee-name').value = settings.payeeName || 'Prajwal Deshpande';
       preview.innerHTML = settings.imagePath
-        ? `<img src="${settings.imagePath}" alt="Current shared UPI payment QR" style="max-width:100%;max-height:320px;object-fit:contain;background:#fff;padding:8px;border-radius:8px" />`
+        ? `<img src="${settings.imagePath}?t=${Date.now()}" alt="Current shared UPI payment QR" style="max-width:100%;max-height:320px;object-fit:contain;background:#fff;padding:8px;border-radius:8px" />`
         : 'No payment QR uploaded';
     } catch (error) {
       preview.textContent = error.message;
@@ -994,6 +1000,9 @@
               <div class="user-card-email">${u.email || 'No email'}</div>
             </div>
           </div>
+          <div style="display:flex;justify-content:flex-end;margin:-.15rem 0 .75rem">
+            <span class="status-${u.status === 'active' ? 'approved' : u.status === 'suspended' ? 'pending' : 'rejected'}">${u.status === 'active' ? 'Active' : u.status === 'suspended' ? 'Suspended' : 'Deleted'}</span>
+          </div>
 
           ${thumbsHtml}
 
@@ -1004,12 +1013,36 @@
             ${rejected  ? `<span class="user-stat-chip" style="background:rgba(244,63,94,.12);color:var(--danger)">${rejected} rejected</span>` : ''}
           </div>
           ${totalPaid > 0 ? `<div style="font-size:.78rem;color:var(--success);margin-top:.5rem"> ₹${Number(totalPaid).toLocaleString('en-IN')} total paid</div>` : ''}
-          <div style="font-size:.75rem;color:var(--muted);margin-top:.35rem"> Click to view details</div>
+          <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.85rem" onclick="event.stopPropagation()">
+            ${u.status === 'suspended'
+              ? `<button class="btn btn-success btn-sm" onclick="setManagedUserStatus(${u.id}, 'activate')">Activate</button>`
+              : u.status !== 'deleted'
+                ? `<button class="btn btn-outline btn-sm" onclick="setManagedUserStatus(${u.id}, 'suspend')">Block</button>`
+                : ''}
+            ${u.status === 'deleted'
+              ? ''
+              : `<button class="btn btn-danger btn-sm" onclick="setManagedUserStatus(${u.id}, 'delete')">Delete</button>`}
+            <button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="openUserModal('${u.username}')">View</button>
+          </div>
         </div>
       `;
     }).join('');
 
     updateStats();
+  }
+
+  async function setManagedUserStatus(userId, action) {
+    const labels = { activate: 'activated', suspend: 'blocked', delete: 'deleted' };
+    if (action === 'delete' && !window.confirm('Delete this user account?')) return;
+    try {
+      await EventSpot.api(`/admin/users/${userId}/${action}`, { method: 'POST', body: '{}' });
+      const users = await EventSpot.api('/admin/users');
+      EventSpot.state.users = users.users;
+      renderUsers();
+      showToast(`User account ${labels[action]} successfully.`, 'success');
+    } catch (error) {
+      showToast(error.message, 'error');
+    }
   }
 
   // ── User detail modal ──────────────────────────────────────

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Spearing Events</title>
-  <link rel="stylesheet" href="style.css?v=6" />
+  <link rel="stylesheet" href="style.css?v=12" />
   <style>
     .notif-wrap {
       position: relative;
@@ -111,8 +111,9 @@
 </div>
 
 <div id="toast-container"></div>
-<script src="shared.js?v=7"></script>
-<script src="api-client.js?v=9"></script>
+<script src="shared.js?v=12"></script>
+<script src="api-client.js?v=12"></script>
+<script src="event-assistant.js?v=12"></script>
 <script>
   // Fallback coords: Bengaluru Majestic
   const FALLBACK_LAT = 12.9762;
@@ -449,6 +450,12 @@
                 ${r.amount > 0 ? `₹${Number(r.amount).toLocaleString('en-IN')} paid` : 'Free'}
               </span>
             </div>
+            ${r.status === 'approved' && r.tickets?.length ? `
+              <div style="margin-top:.85rem">
+                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openGatePass('${r.paymentId}')">
+                  Show entry QR pass
+                </button>
+              </div>` : ''}
             <div style="font-size:.75rem;color:var(--muted);margin-top:.5rem">
               Booking ID: <strong style="color:var(--accent2)">${r.paymentId}</strong>
             </div>
@@ -456,6 +463,45 @@
         </div>
       `;
     }).join('');
+  }
+
+  async function openGatePass(bookingId) {
+    const booking = getUserRegistrations(currentUser.username).find(registration => registration.paymentId === bookingId);
+    if (!booking?.tickets?.length) {
+      showToast('The entry QR pass is not available yet.', 'error');
+      return;
+    }
+    let modal = document.getElementById('gate-pass-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'gate-pass-modal';
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div class="modal" style="max-width:520px;text-align:center">
+          <button class="modal-close" onclick="closeGatePass()" aria-label="Close">&times;</button>
+          <h2>Venue Entry Pass</h2>
+          <div id="gate-pass-content"></div>
+          <button class="btn btn-outline btn-sm" onclick="closeGatePass()">Close</button>
+        </div>`;
+      document.body.appendChild(modal);
+    }
+    document.getElementById('gate-pass-content').innerHTML = booking.tickets.map((ticket, index) => `
+      <div style="margin:1rem 0;padding:1rem;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm)">
+        <strong>${booking.eventTitle}</strong>
+        <div style="color:var(--muted);font-size:.82rem;margin:.35rem 0 0.75rem">Entry pass ${index + 1} of ${booking.tickets.length}</div>
+        <img src="./api/tickets/${ticket.validation_token}/qr?t=${Date.now()}" alt="Unique entry QR pass ${index + 1}"
+          onerror="this.style.display='none';this.nextElementSibling.style.display='block'"
+          style="width:min(260px,80vw);height:min(260px,80vw);display:block;margin:0 auto;background:#fff;border-radius:8px;padding:8px" />
+        <div style="display:none;color:var(--danger);font-size:.82rem;margin:.75rem 0">QR image could not load. Please refresh and try again.</div>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:.6rem">
+          Pass status: ${ticket.status === 'checked_in' ? 'Checked in' : ticket.status}
+        </div>
+      </div>`).join('');
+    modal.classList.add('open');
+  }
+
+  function closeGatePass() {
+    document.getElementById('gate-pass-modal')?.classList.remove('open');
   }
 
   // ── Notifications ─────────────────────────────────────────
