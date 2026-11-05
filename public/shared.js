@@ -110,7 +110,10 @@ initializePasswordToggles();
 // ── Date formatting ─────────────────────────────────────────
 function formatDate(dateStr) {
   if (!dateStr) return '';
-  const d = new Date(dateStr + 'T00:00:00');
+  const value = String(dateStr);
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(value + 'T00:00:00')
+    : new Date(value.replace(' ', 'T'));
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 

@@ -1,6 +1,32 @@
+# Environment and secrets
 /.env
+/.env.*
+!/.env.example
+
+# Dependencies
 /vendor/
+
+# Application runtime logs and private uploads
 /storage/logs/*
 !/storage/logs/.gitkeep
 /storage/uploads/*
 !/storage/uploads/.gitkeep
+
+# Publicly served runtime uploads
+/public/uploads/*
+!/public/uploads/.htaccess
+
+# PHP and development tooling
+*.log
+*.cache
+*.tmp
+.phpunit.result.cache
+phpunit.xml
+.phpunit.cache/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.code-workspace
+.DS_Store
+Thumbs.db

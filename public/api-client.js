@@ -1,10 +1,40 @@
 (() => {
   const state = { user: null, csrf: null, events: [], bookings: [], notifications: [], users: [] };
+  const apiBases = [];
+  const addApiBase = url => {
+    const normalized = url.replace(/\/+$/, '');
+    if (normalized && !apiBases.includes(normalized)) apiBases.push(normalized);
+  };
+  const publicMatch = window.location.pathname.match(/^(.+\/public)(?:\/|$)/i);
+  const currentDirectory = window.location.pathname.replace(/\/[^/]*$/, '');
+  const frontendApiPath = publicMatch ? publicMatch[1] : currentDirectory;
+  addApiBase(`${window.location.origin}${frontendApiPath}/api`);
+
+  let apiBasePromise;
+  const resolveApiBase = () => {
+    if (apiBasePromise) return apiBasePromise;
+    apiBasePromise = (async () => {
+      for (const base of apiBases) {
+        try {
+          const response = await fetch(`${base}/auth/me`, { credentials: 'include' });
+          if (response.ok) return base;
+        } catch (_) {}
+      }
+      return apiBases[0];
+    })();
+    return apiBasePromise;
+  };
   const api = async (path, options = {}) => {
     const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
     const headers = { Accept: 'application/json', ...(options.body && !isFormData ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) };
     if (!['GET', 'HEAD'].includes(options.method || 'GET') && state.csrf) headers['X-CSRF-Token'] = state.csrf;
-    const response = await fetch(`./api${path}`, { credentials: 'same-origin', ...options, headers });
+    const base = await resolveApiBase();
+    let response;
+    try {
+      response = await fetch(`${base}${path}`, { credentials: 'include', ...options, headers });
+    } catch (_) {
+      throw new Error('Unable to reach the server. Check that Apache/PHP is running and reload the page.');
+    }
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || !payload.success) throw new Error(payload.error?.message || 'Request failed.');
     return payload.data;
@@ -26,7 +56,7 @@
     state.csrf = session.csrfToken;
     await loadUserData();
   };
-  const toLegacyBooking = booking => ({ ...booking, username: booking.username || state.user?.username, eventId: String(booking.event_id), eventTitle: booking.title, amount: Number(booking.total_amount), paymentId: booking.id, bookingStatus: booking.status, paymentReference: booking.payment_reference || null, paidAt: booking.created_at, status: booking.status === 'confirmed' ? 'approved' : booking.status === 'cancelled' ? 'rejected' : 'pending', tickets: booking.tickets || [] });
+  const toLegacyBooking = booking => ({ ...booking, username: booking.username || state.user?.username, eventId: String(booking.event_id), eventTitle: booking.title, eventImage: booking.event_image || '', eventStartsAt: booking.starts_at || '', eventEndsAt: booking.ends_at || '', eventVenue: booking.venue || '', eventVenueDetails: booking.venue_details || '', amount: Number(booking.total_amount), paymentId: booking.id, bookingStatus: booking.status, paymentReference: booking.payment_reference || null, paidAt: booking.created_at, status: booking.status === 'confirmed' ? 'approved' : booking.status === 'cancelled' ? 'rejected' : 'pending', tickets: booking.tickets || [] });
   const refreshEvents = async () => { state.events = (await api('/events?limit=50')).events; return state.events; };
   const authReady = api('/auth/me')
     .then(session => {
@@ -51,6 +81,8 @@
     async refresh() { await syncState(); await refreshEvents(); },
     async getEvent(id) { return (await api(`/events/${encodeURIComponent(id)}`)).event; },
     async adminEvents() { return (await api('/admin/events')).events; },
+    async adminEntryPasses() { return api('/admin/entry-passes'); },
+    async checkInTicket(token) { return api(`/tickets/${encodeURIComponent(token)}/check-in`, { method: 'POST', body: '{}' }); },
     async uploadEventImages(id, files) {
       const form = new FormData();
       Array.from(files).forEach(file => form.append('images[]', file));
@@ -64,7 +96,11 @@
     async addWishlist(eventId) { return api('/wishlists', { method: 'POST', body: JSON.stringify({ eventId }) }); },
     async removeWishlist(eventId) { return api(`/wishlists/${encodeURIComponent(eventId)}`, { method: 'DELETE', body: '{}' }); },
     async getReviews(eventId) { return (await api(`/reviews?eventId=${encodeURIComponent(eventId)}`)).reviews; },
-    async submitReview(eventId, rating, body) { return api('/reviews', { method: 'POST', body: JSON.stringify({ eventId, rating, body }) }); }
+    async submitReview(eventId, rating, body) { return api(`/reviews`, { method: 'POST', body: JSON.stringify({ eventId, rating, body }) }); },
+    async updateProfile(payload) { return api('/auth/profile', { method: 'PATCH', body: JSON.stringify(payload) }); },
+    async changePassword(currentPassword, newPassword) { return api('/auth/password', { method: 'PATCH', body: JSON.stringify({ currentPassword, newPassword }) }); },
+    async createSupportRequest(payload) { return api('/support/requests', { method: 'POST', body: JSON.stringify(payload) }); },
+    async supportRequests() { return api('/support/requests'); }
   };
   LS.get = key => ({ currentUser: state.user, cachedEvents: state.events, registrations: state.bookings, notifications: state.notifications, users: state.users }[key] || null);
   LS.set = () => {};
@@ -81,4 +117,5 @@
   window.addEventAPI = async payload => { const data = await api('/admin/events', { method: 'POST', body: JSON.stringify(eventPayload(payload)) }); state.events = (await api('/events?limit=50')).events; const events = await api('/admin/events'); return { success: true, event: events.events.find(event => event.id === String(data.eventId)) }; };
   window.editEventAPI = async (id, payload) => { const data = await api(`/admin/events/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(eventPayload(payload)) }); state.events = (await api('/events?limit=50')).events; const events = await api('/admin/events'); return { success: true, event: events.events.find(event => event.id === String(data.eventId)) }; };
   window.deleteEventAPI = async id => { await api(`/admin/events/${id}/archive`, { method: 'POST', body: '{}' }); state.events = (await api('/admin/events')).events; return { success: true }; };
+  window.cancelEventAPI = async (id, reason) => { await api(`/admin/events/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }); state.events = (await api('/admin/events')).events; return { success: true }; };
 })();

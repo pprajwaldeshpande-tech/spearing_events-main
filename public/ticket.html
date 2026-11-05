@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Event Entry Pass - Spearing Events</title>
+  <link rel="stylesheet" href="style.css?v=14" />
+  <style>
+    .ticket-page { max-width: 760px; margin: 3rem auto; padding: 0 1rem; }
+    .ticket-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+    .ticket-card img { width: 100%; max-height: 300px; object-fit: cover; }
+    .ticket-content { padding: 1.5rem; }
+    .ticket-status { display: inline-block; margin-bottom: 1rem; padding: .35rem .8rem; border-radius: 999px; font-weight: 700; }
+    .ticket-status.valid { color: var(--success); background: rgba(34,211,160,.12); }
+    .ticket-status.used { color: var(--warn); background: rgba(251,146,60,.12); }
+    .ticket-details { display: grid; gap: .85rem; margin-top: 1rem; color: var(--muted); }
+    .ticket-details strong { display: block; color: var(--text); }
+  </style>
+</head>
+<body>
+  <main class="ticket-page">
+    <div id="ticket-result" class="ticket-card" style="padding:2rem;text-align:center">Loading entry pass...</div>
+  </main>
+  <script>
+    const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
+    const formatDate = value => {
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? String(value || 'To be confirmed') : date.toLocaleString('en-IN', { weekday:'short', day:'numeric', month:'long', year:'numeric', hour:'numeric', minute:'2-digit' });
+    };
+    const token = new URLSearchParams(location.search).get('token');
+    const result = document.getElementById('ticket-result');
+
+    if (!token || !/^[a-f0-9]{64}$/i.test(token)) {
+      result.textContent = 'This entry pass link is invalid.';
+    } else {
+      const detailsUrl = new URL(`api/tickets/${encodeURIComponent(token)}/details`, location.href);
+      detailsUrl.searchParams.set('t', Date.now());
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      fetch(detailsUrl.href, {
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+        signal: controller.signal
+      })
+        .then(async response => {
+          clearTimeout(timeout);
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok || !payload.data) throw new Error(payload.error?.message || 'Entry pass could not be loaded.');
+          return payload.data;
+        })
+        .then(({ ticket, event }) => {
+          const checkedIn = ticket.status === 'checked_in';
+          const image = event.image ? `<img src="${escapeHtml(event.image)}" alt="${escapeHtml(event.title)}" />` : '';
+          result.removeAttribute('style');
+          result.innerHTML = `${image}<div class="ticket-content">
+            <span class="ticket-status ${checkedIn ? 'used' : 'valid'}">${checkedIn ? 'Checked in' : 'Valid entry pass'}</span>
+            <h1 style="margin-top:0">${escapeHtml(event.title)}</h1>
+            <p>${escapeHtml(event.description || '')}</p>
+            <div class="ticket-details">
+              <div>Date and time<strong>${escapeHtml(formatDate(event.startsAt))}</strong></div>
+              <div>Venue<strong>${escapeHtml(event.venue)}</strong>${event.venueDetails ? `<span>${escapeHtml(event.venueDetails)}</span>` : ''}</div>
+              <div>Category<strong>${escapeHtml(event.category)}</strong></div>
+              <div>Booking<strong>${escapeHtml(ticket.bookingId)} · ${ticket.quantity} ticket${ticket.quantity === 1 ? '' : 's'}</strong></div>
+            </div>
+          </div>`;
+        })
+        .catch(error => {
+          clearTimeout(timeout);
+          result.innerHTML = `<strong>Entry pass could not load.</strong><br><span style="color:var(--muted)">Check that this phone is connected to the same Wi-Fi network, then retry.</span><br><button class="btn btn-primary btn-sm" style="margin-top:1rem" onclick="location.reload()">Retry</button>`;
+        });
+    }
+  </script>
+</body>
+</html>

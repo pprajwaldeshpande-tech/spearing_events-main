@@ -7,6 +7,8 @@ CREATE TABLE users (
   email VARCHAR(254) NOT NULL,
   password_hash VARCHAR(255) NULL,
   full_name VARCHAR(120) NOT NULL DEFAULT '',
+  phone VARCHAR(30) NULL,
+  profile_picture VARCHAR(255) NULL,
   auth_provider VARCHAR(20) NOT NULL DEFAULT 'email',
   provider_user_id VARCHAR(255) NULL,
   email_verified BOOLEAN NOT NULL DEFAULT FALSE,
@@ -65,6 +67,8 @@ CREATE TABLE events (
   capacity INT UNSIGNED NOT NULL,
   reserved_quantity INT UNSIGNED NOT NULL DEFAULT 0,
   status ENUM('draft','published','cancelled','archived') NOT NULL DEFAULT 'draft',
+  cancellation_reason VARCHAR(1000) NULL,
+  cancelled_at DATETIME NULL,
   cancellation_cutoff_hours SMALLINT UNSIGNED NOT NULL DEFAULT 24,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -97,6 +101,8 @@ CREATE TABLE bookings (
   expires_at DATETIME NULL,
   payment_reference VARCHAR(100) NULL,
   payment_submitted_at DATETIME NULL,
+  rejection_reason VARCHAR(1000) NULL,
+  rejected_at DATETIME NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_bookings_idempotency (user_id, idempotency_key),
@@ -200,6 +206,20 @@ CREATE TABLE notifications (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_notifications_user_read (user_id, read_at, created_at),
   CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE support_requests (
+  id CHAR(26) PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  subject VARCHAR(180) NOT NULL,
+  category VARCHAR(50) NOT NULL DEFAULT 'general',
+  message VARCHAR(3000) NOT NULL,
+  status ENUM('open','in_progress','resolved','closed') NOT NULL DEFAULT 'open',
+  admin_response VARCHAR(3000) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_support_user_created (user_id, created_at),
+  CONSTRAINT fk_support_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE audit_logs (

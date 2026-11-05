@@ -52,9 +52,21 @@
 </div>
 
 <div class="tabs">
+  <button class="tab-btn" onclick="switchTab('overview')">Overview</button>
   <button class="tab-btn active" onclick="switchTab('all')">All Events</button>
   <button class="tab-btn" onclick="switchTab('my')">My Bookings</button>
+  <button class="tab-btn" onclick="switchTab('history')">Booking History</button>
+  <button class="tab-btn" onclick="switchTab('wishlist')">Saved Events</button>
   <button class="tab-btn" onclick="switchTab('notifs')" id="notif-tab-btn"> Notifications</button>
+  <button class="tab-btn" onclick="switchTab('profile')">My Profile</button>
+  <button class="tab-btn" onclick="switchTab('support')">Help & Support</button>
+</div>
+
+<div class="tab-panel" id="tab-overview">
+  <h3 style="margin-bottom:1rem">Dashboard Overview</h3>
+  <div id="dashboard-stats" class="events-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"></div>
+  <h3 style="margin:1.5rem 0 1rem">Recently booked</h3>
+  <div id="recent-bookings" class="events-grid"></div>
 </div>
 
 <!-- Tab: All Events -->
@@ -81,15 +93,96 @@
       <option>Technology</option><option>Music</option><option>Food</option>
       <option>Business</option><option>Health</option><option>Arts</option>
       <option>Sports</option><option>Education</option><option>Other</option>
+      <option>Entertainment</option><option>Cultural Events</option><option>Workshops</option><option>Business Events</option>
     </select>
     <input type="date" id="filter-date" onchange="applyFilters()" />
+    <input type="text" id="filter-location" placeholder="Filter by location" oninput="applyFilters()" />
+    <input type="number" id="filter-price" placeholder="Maximum price" min="0" oninput="applyFilters()" />
+    <select id="filter-sort" onchange="applyFilters()">
+      <option value="upcoming">Soonest first</option>
+      <option value="name">Event name</option>
+      <option value="price-low">Lowest price</option>
+      <option value="price-high">Highest price</option>
+    </select>
     <button class="btn btn-outline btn-sm" onclick="clearFilters()">Clear filters</button>
   </div>
-
   <div class="events-grid" id="all-events-grid">
     <div class="empty-state"><div class="icon"></div><p>Loading events…</p></div>
   </div>
 </div>
+
+  <div class="tab-panel" id="tab-history">
+    <h3 style="margin-bottom:1.5rem">Booking History</h3>
+    <div class="filter-bar">
+      <input id="history-search" type="search" placeholder="Search by event or booking ID" oninput="renderBookingHistory()" />
+      <select id="history-status" onchange="renderBookingHistory()">
+        <option value="">All statuses</option><option value="approved">Approved</option><option value="pending">Pending</option>
+        <option value="rejected">Rejected</option><option value="cancelled">Cancelled</option><option value="completed">Completed</option>
+      </select>
+      <select id="history-period" onchange="renderBookingHistory()">
+        <option value="all">Upcoming & past</option><option value="upcoming">Upcoming</option><option value="past">Past</option>
+      </select>
+    </div>
+    <div class="events-grid" id="booking-history-grid"></div>
+  </div>
+
+  <div class="tab-panel" id="tab-wishlist">
+    <h3 style="margin-bottom:1.5rem">Saved Events</h3>
+    <div class="events-grid" id="wishlist-events-grid"></div>
+  </div>
+
+  <div class="tab-panel" id="tab-profile">
+    <h3>My Profile</h3>
+    <form id="profile-form" class="card" style="max-width:620px;margin-top:1rem;padding:1.25rem">
+      <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">
+        <div id="profile-avatar" style="width:72px;height:72px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:white;font-size:1.7rem;font-weight:700">U</div>
+        <div><strong id="profile-display-name">User</strong><div id="profile-registered" style="font-size:.82rem;color:var(--muted)">Registered</div></div>
+      </div>
+      <div class="filter-bar">
+        <input id="profile-name" required maxlength="120" placeholder="Full name" />
+        <input id="profile-email" required type="email" placeholder="Email" />
+        <input id="profile-username" required minlength="3" maxlength="50" placeholder="Username" />
+        <input id="profile-phone" maxlength="30" placeholder="Phone number" />
+        <input id="profile-picture" maxlength="255" placeholder="Profile photo URL (optional)" />
+      </div>
+      <button class="btn btn-primary" type="submit">Save profile</button>
+      <button class="btn btn-outline" type="button" onclick="loadProfile()">Cancel</button>
+    </form>
+    <form id="password-form" class="card" style="max-width:620px;margin-top:1rem;padding:1.25rem">
+      <h3>Change password</h3>
+      <div class="filter-bar">
+        <input id="current-password" required type="password" placeholder="Current password" />
+        <input id="new-password" required type="password" minlength="10" placeholder="New password" />
+        <input id="confirm-password" required type="password" minlength="10" placeholder="Confirm new password" />
+      </div>
+      <button class="btn btn-outline" type="submit">Change password</button>
+    </form>
+  </div>
+
+  <div class="tab-panel" id="tab-support">
+    <h3>Help & Support</h3>
+    <div class="card" style="padding:1rem;margin:1rem 0">
+      <strong>Frequently asked questions</strong>
+      <details><summary>How can I book an event?</summary><p>Open All Events, select an event and click Book Now.</p></details>
+      <details><summary>How do I know whether my booking is approved?</summary><p>The booking status appears in My Bookings and Booking History.</p></details>
+      <details><summary>Where can I find my QR Entry Pass?</summary><p>Approved bookings show the QR in My Bookings under Show entry QR pass.</p></details>
+      <details><summary>How do I scan my QR code?</summary><p>Open the QR with your camera or QR scanner and allow the verification page to load.</p></details>
+      <details><summary>What if my QR has already been scanned?</summary><p>The verification page displays Already Scanned - Entry Completed and entry is not recorded twice.</p></details>
+      <details><summary>How can I cancel my booking?</summary><p>Use the cancellation option shown for eligible bookings, if available.</p></details>
+      <details><summary>How can I contact the administrator?</summary><p>Submit a support request below with your issue details.</p></details>
+    </div>
+    <form id="support-form" class="card" style="max-width:620px;padding:1.25rem">
+      <div class="filter-bar">
+        <input id="support-name" readonly placeholder="Your name" />
+        <input id="support-email" readonly type="email" placeholder="Your email" />
+        <input id="support-subject" required minlength="3" maxlength="180" placeholder="Subject" />
+        <select id="support-category"><option>Booking</option><option>Payment</option><option>QR Code</option><option>Event</option><option>Account</option><option>General</option></select>
+        <textarea id="support-message" required minlength="10" maxlength="3000" rows="5" placeholder="Describe your issue"></textarea>
+      </div>
+      <button class="btn btn-primary" type="submit">Submit request</button>
+    </form>
+    <div id="support-requests" style="margin-top:1rem"></div>
+  </div>
 
 <!-- Tab: My Bookings -->
 <div class="tab-panel" id="tab-my">
@@ -111,9 +204,9 @@
 </div>
 
 <div id="toast-container"></div>
-<script src="shared.js?v=12"></script>
-<script src="api-client.js?v=12"></script>
-<script src="event-assistant.js?v=12"></script>
+<script src="shared.js?v=13"></script>
+<script src="api-client.js?v=14"></script>
+<script src="event-assistant.js?v=14"></script>
 <script>
   // Fallback coords: Bengaluru Majestic
   const FALLBACK_LAT = 12.9762;
@@ -262,7 +355,12 @@
     applyFilters();
     renderMyBookings();
     renderWishlist();
+    renderDashboard();
+    renderBookingHistory();
+    loadProfile();
     renderNotifications();
+    bindProfileForms();
+    loadSupportRequests();
     updateNotifBadge();
   })();
 
@@ -270,11 +368,15 @@
   function switchTab(name) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    const idx = { all: 0, my: 1, wishlist: 2, notifs: 3 }[name];
+    const idx = { overview: 0, all: 1, my: 2, history: 3, wishlist: 4, notifs: 5, profile: 6, support: 7 }[name];
     document.querySelectorAll('.tab-btn')[idx].classList.add('active');
     document.getElementById('tab-' + name).classList.add('active');
     if (name === 'my') renderMyBookings();
     if (name === 'wishlist') renderWishlist();
+    if (name === 'overview') renderDashboard();
+    if (name === 'history') renderBookingHistory();
+    if (name === 'profile') loadProfile();
+    if (name === 'support') loadSupportRequests();
     if (name === 'notifs') {
       renderNotifications();
       markNotificationsRead(currentUser.username);
@@ -289,10 +391,14 @@
     const date     = document.getElementById('filter-date').value; // always YYYY-MM-DD from <input type="date">
     const nearby   = document.getElementById('nearby-toggle').checked;
     const radiusKm = parseFloat(document.getElementById('radius-km').value) || 15;
+    const location = document.getElementById('filter-location').value.toLowerCase();
+    const maxPrice = parseFloat(document.getElementById('filter-price').value);
 
     let filtered = allEvents.filter(e => {
       if (search && !e.title.toLowerCase().includes(search) && !e.location.toLowerCase().includes(search)) return false;
       if (cat  && e.category !== cat) return false;
+      if (location && !String(e.location || '').toLowerCase().includes(location)) return false;
+      if (Number.isFinite(maxPrice) && Number(e.price || 0) > maxPrice) return false;
 
       // ── DATE FIX: normalise the event's stored date to ISO before comparing ──
       if (date) {
@@ -311,6 +417,11 @@
     });
 
     if (nearby) filtered.sort((a, b) => (a._dist || 0) - (b._dist || 0));
+    const sort = document.getElementById('filter-sort').value;
+    filtered.sort((a, b) => sort === 'name' ? String(a.title).localeCompare(String(b.title))
+      : sort === 'price-low' ? Number(a.price || 0) - Number(b.price || 0)
+      : sort === 'price-high' ? Number(b.price || 0) - Number(a.price || 0)
+      : new Date(a.startsAt || a.date).getTime() - new Date(b.startsAt || b.date).getTime());
     renderAllEvents(filtered);
   }
 
@@ -318,6 +429,9 @@
     document.getElementById('search-input').value     = '';
     document.getElementById('filter-cat').value       = '';
     document.getElementById('filter-date').value      = '';
+    document.getElementById('filter-location').value = '';
+    document.getElementById('filter-price').value = '';
+    document.getElementById('filter-sort').value = 'upcoming';
     document.getElementById('nearby-toggle').checked  = false;
     applyFilters();
   }
@@ -354,7 +468,7 @@
         <div class="card event-card" onclick="goToEvent('${e.id}')">
           <img class="event-img" src="${img}" alt="${e.title}" onerror="this.style.display='none'" loading="lazy" />
           <div class="event-card-body">
-            <button class="btn btn-outline btn-sm wishlist-toggle" style="float:right" onclick="event.stopPropagation();toggleWishlist('${e.id}')">${wishlistIds.has(e.id) ? 'Saved' : 'Wishlist'}</button>
+            <button class="btn ${wishlistIds.has(e.id) ? 'btn-success' : 'btn-outline'} btn-sm wishlist-toggle" style="float:right" onclick="event.stopPropagation();toggleWishlist('${e.id}')">${wishlistIds.has(e.id) ? '♥ Saved' : '♡ Save'}</button>
             <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
               ${catBadge(e.category)}
               ${dist}
@@ -400,6 +514,7 @@
 
   function renderWishlist() {
     const grid = document.getElementById('wishlist-events-grid');
+    if (!grid) return;
     const events = allEvents.filter(event => wishlistIds.has(event.id));
     if (!events.length) {
       grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="icon"></div><p>No saved events yet.</p></div>';
@@ -412,10 +527,145 @@
           ${catBadge(event.category)}
           <h3>${event.title}</h3>
           <div class="event-meta"><span>${formatDate(event.date)}</span><span>${event.location}</span></div>
-          <div class="card-actions"><span class="event-price">${event.price ? '₹' + Number(event.price).toLocaleString('en-IN') : 'Free'}</span><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();toggleWishlist('${event.id}')">Remove</button></div>
+          <p>${escapeUserHtml(event.description || '').slice(0, 160)}</p>
+          <div class="card-actions"><span class="event-price">${event.price ? '₹' + Number(event.price).toLocaleString('in-IN') : 'Free'}</span><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();goToEvent('${event.id}')">View Details</button><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();goToEvent('${event.id}')">Book Now</button><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();toggleWishlist('${event.id}')">Remove</button></div>
         </div>
       </div>`).join('');
   }
+
+    function renderDashboard() {
+      const bookings = getUserRegistrations(currentUser.username);
+      const approved = bookings.filter(b => b.status === 'approved').length;
+      const pending = bookings.filter(b => b.status === 'pending').length;
+      const rejected = bookings.filter(b => b.status === 'rejected').length;
+      const upcoming = bookings.filter(b => b.status === 'approved' && new Date(b.eventStartsAt).getTime() >= Date.now()).length;
+      const stats = [
+        ['Total Bookings', bookings.length],
+        ['Pending', pending],
+        ['Approved', approved],
+        ['Rejected', rejected],
+        ['Upcoming Events', upcoming],
+      ];
+      document.getElementById('dashboard-stats').innerHTML = stats.map(([label, value]) =>
+        `<div class="card" style="padding:1rem;text-align:center"><strong style="font-size:1.55rem;color:var(--accent2)">${value}</strong><div style="color:var(--muted)">${label}</div></div>`
+      ).join('');
+      const recent = [...bookings].sort((a, b) => new Date(b.paidAt || 0) - new Date(a.paidAt || 0)).slice(0, 4);
+      document.getElementById('recent-bookings').innerHTML = recent.length ? recent.map(booking => `
+        <div class="card event-card" style="cursor:pointer" onclick="goToEvent('${booking.eventId}')">
+          <div class="event-card-body"><h3>${escapeUserHtml(booking.eventTitle)}</h3>
+          <div class="event-meta"><span>${formatDate(booking.eventStartsAt)}</span><span>${escapeUserHtml(booking.eventVenue || '')}</span></div>
+          <span class="btn btn-sm ${booking.status === 'approved' ? 'btn-success' : booking.status === 'rejected' ? 'btn-danger' : 'btn-warn'}">${escapeUserHtml(booking.status)}</span></div>
+        </div>`).join('') : '<div class="empty-state"><p>No recent bookings.</p></div>';
+    }
+
+    function renderBookingHistory() {
+      const bookings = [...getUserRegistrations(currentUser.username)].sort((a, b) => new Date(b.paidAt || 0) - new Date(a.paidAt || 0));
+      const grid = document.getElementById('booking-history-grid');
+        const query = String(document.getElementById('history-search')?.value || '').toLowerCase();
+        const statusFilter = document.getElementById('history-status')?.value || '';
+        const period = document.getElementById('history-period')?.value || 'all';
+        const filtered = bookings.filter(booking => {
+          const text = `${booking.eventTitle} ${booking.paymentId}`.toLowerCase();
+          if (query && !text.includes(query)) return false;
+          const past = new Date(booking.eventEndsAt || booking.eventStartsAt).getTime() < Date.now();
+          const status = booking.status === 'approved' ? 'approved' : booking.status === 'cancelled' ? 'cancelled' : booking.status === 'rejected' ? 'rejected' : 'pending';
+          const effectiveStatus = past && booking.status === 'approved' ? 'completed' : status;
+          if (statusFilter && effectiveStatus !== statusFilter) return false;
+          if (period === 'past' && !past) return false;
+          if (period === 'upcoming' && past) return false;
+          return true;
+        });
+        grid.innerHTML = filtered.length ? filtered.map(booking => {
+          const ended = new Date(booking.eventEndsAt || booking.eventStartsAt).getTime() < Date.now();
+          const status = booking.status === 'cancelled' || booking.status === 'rejected' ? 'Cancelled / Rejected' : ended ? 'Completed' : booking.status;
+          return `<div class="card event-card" onclick="goToEvent('${booking.eventId}')">
+          ${booking.eventImage ? `<img class="event-img" src="${escapeUserHtml(booking.eventImage)}" alt="${escapeUserHtml(booking.eventTitle)}" onerror="this.style.display='none'">` : ''}
+          <div class="event-card-body"><h3>${escapeUserHtml(booking.eventTitle)}</h3>
+          <div class="event-meta"><span>${formatDate(booking.eventStartsAt)}</span><span>${escapeUserHtml(booking.eventVenue || '')}</span></div>
+          <div style="font-size:.82rem;color:var(--muted)">Booking ID: ${escapeUserHtml(booking.paymentId)}</div>
+          <div style="font-size:.82rem;color:var(--muted)">Booked: ${booking.paidAt ? formatDate(booking.paidAt) : '-'}</div>
+          <span class="btn btn-sm btn-outline">${escapeUserHtml(status)}</span>
+          ${booking.status === 'approved' && !ended ? '<button class="btn btn-primary btn-sm" type="button" onclick="event.stopPropagation();openGatePass(\'' + booking.paymentId + '\')">Show QR Entry Pass</button>' : ''}
+          </div>
+        </div>`;
+      }).join('') : '<div class="empty-state"><p>No booking history yet.</p></div>';
+    }
+
+    function loadProfile() {
+      document.getElementById('profile-name').value = currentUser.full_name || '';
+      document.getElementById('profile-email').value = currentUser.email || '';
+      document.getElementById('profile-username').value = currentUser.username || '';
+      document.getElementById('profile-phone').value = currentUser.phone || '';
+      document.getElementById('profile-picture').value = currentUser.profile_picture || '';
+      document.getElementById('profile-display-name').textContent = currentUser.full_name || currentUser.username || 'User';
+      document.getElementById('profile-registered').textContent = currentUser.created_at ? `Registered ${formatDate(currentUser.created_at)}` : 'Registered user';
+      const initial = String(currentUser.full_name || currentUser.username || 'U').trim().charAt(0).toUpperCase();
+      const avatar = document.getElementById('profile-avatar');
+      avatar.textContent = initial;
+      avatar.style.backgroundImage = currentUser.profile_picture ? `url("${String(currentUser.profile_picture).replace(/"/g, '&quot;')}")` : '';
+      avatar.style.backgroundSize = 'cover';
+      avatar.style.backgroundPosition = 'center';
+      document.getElementById('support-name').value = currentUser.full_name || currentUser.username || '';
+      document.getElementById('support-email').value = currentUser.email || '';
+    }
+
+    function bindProfileForms() {
+      document.getElementById('profile-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        try {
+          const result = await EventSpot.updateProfile({
+            fullName: document.getElementById('profile-name').value,
+            email: document.getElementById('profile-email').value,
+            username: document.getElementById('profile-username').value,
+            phone: document.getElementById('profile-phone').value,
+            profilePicture: document.getElementById('profile-picture').value
+          });
+          const previousUsername = currentUser.username;
+          currentUser = result.user;
+          loadProfile();
+          document.getElementById('welcome-name').textContent = `Welcome, ${currentUser.full_name || currentUser.username}!`;
+          const navUser = Array.from(document.querySelectorAll('#nav-links li span')).find(element => element.textContent.trim() === previousUsername);
+          if (navUser) navUser.textContent = currentUser.username;
+          showToast('Profile updated.', 'success');
+        } catch (error) { showToast(error.message, 'error'); }
+      });
+      document.getElementById('password-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        try {
+          if (document.getElementById('new-password').value !== document.getElementById('confirm-password').value) {
+            showToast('New password and confirmation must match.', 'error');
+            return;
+          }
+          await EventSpot.changePassword(document.getElementById('current-password').value, document.getElementById('new-password').value);
+          event.target.reset();
+          showToast('Password changed.', 'success');
+        } catch (error) { showToast(error.message, 'error'); }
+      });
+      document.getElementById('support-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        try {
+          await EventSpot.createSupportRequest({
+            subject: document.getElementById('support-subject').value,
+            category: document.getElementById('support-category').value,
+            message: document.getElementById('support-message').value
+          });
+          event.target.reset();
+          showToast('Support request submitted.', 'success');
+          loadSupportRequests();
+        } catch (error) { showToast(error.message, 'error'); }
+      });
+    }
+
+    async function loadSupportRequests() {
+      try {
+        const data = await EventSpot.supportRequests();
+        document.getElementById('support-requests').innerHTML = data.requests.length ? data.requests.map(request =>
+          `<div class="card" style="padding:1rem;margin-bottom:.75rem"><strong>${escapeUserHtml(request.subject)}</strong><div style="color:var(--muted);font-size:.82rem">Ticket ${escapeUserHtml(request.id)} | ${formatDate(request.created_at)} | ${escapeUserHtml(request.category)} - ${escapeUserHtml(request.status)}</div><p>${escapeUserHtml(request.message)}</p>${request.admin_response ? `<strong>Administrator response:</strong><p>${escapeUserHtml(request.admin_response)}</p>` : ''}</div>`
+        ).join('') : '<div class="empty-state"><p>No support requests submitted.</p></div>';
+      } catch (error) {
+        document.getElementById('support-requests').innerHTML = `<p style="color:var(--danger)">${escapeUserHtml(error.message)}</p>`;
+      }
+    }
 
   // ── My Bookings ───────────────────────────────────────────
   function renderMyBookings() {
@@ -437,6 +687,8 @@
       const img       = event ? getEventImage(event) : '';
       const statusCls = r.status === 'approved' ? 'btn-success' : r.status === 'rejected' ? 'btn-danger' : 'btn-warn';
       const statusLbl = r.status === 'approved' ? 'Approved' : r.status === 'rejected' ? 'Rejected' : (r.paymentReference ? 'Payment Submitted' : 'Pending Payment');
+      const cancelled = r.event_status === 'cancelled';
+      const rejected = r.status === 'rejected';
 
       return `
         <div class="card event-card" onclick="goToEvent('${r.eventId}')">
@@ -444,13 +696,26 @@
           <div class="event-card-body">
             <h3>${r.eventTitle}</h3>
             ${event ? `<div class="event-meta"><span> ${formatDate(event.date)}</span><span> ${event.location}</span></div>` : ''}
+            ${cancelled ? `
+              <div style="margin-top:.85rem;padding:.85rem;border:1px solid rgba(239,68,68,.35);border-radius:.5rem;background:rgba(239,68,68,.08)">
+                <strong style="color:var(--danger)">This event has been cancelled by the administrator.</strong>
+                <div style="font-size:.82rem;margin-top:.4rem"><strong>Event:</strong> ${r.eventTitle}</div>
+                <div style="font-size:.82rem"><strong>Cancellation date:</strong> ${r.cancelled_at ? new Date(r.cancelled_at.replace(' ', 'T')).toLocaleString('en-IN') : '-'}</div>
+                <div style="font-size:.82rem"><strong>Reason:</strong> ${r.cancellation_reason || 'Reason not recorded'}</div>
+              </div>` : ''}
+            ${rejected ? `
+              <div style="margin-top:.85rem;padding:.85rem;border:1px solid rgba(239,68,68,.35);border-radius:.5rem;background:rgba(239,68,68,.08)">
+                <strong style="color:var(--danger)">Your booking was rejected by the administrator.</strong>
+                <div style="font-size:.82rem;margin-top:.4rem"><strong>Reason:</strong> ${r.rejection_reason || 'Reason not recorded'}</div>
+                ${r.rejected_at ? `<div style="font-size:.82rem"><strong>Rejected on:</strong> ${new Date(r.rejected_at.replace(' ', 'T')).toLocaleString('en-IN')}</div>` : ''}
+              </div>` : ''}
             <div class="card-actions" style="justify-content:space-between">
               <span class="btn ${statusCls} btn-sm" style="cursor:default">${statusLbl}</span>
               <span style="font-size:.8rem;color:var(--muted)">
                 ${r.amount > 0 ? `₹${Number(r.amount).toLocaleString('en-IN')} paid` : 'Free'}
               </span>
             </div>
-            ${r.status === 'approved' && r.tickets?.length ? `
+            ${r.status === 'approved' && r.tickets?.length && r.event_status !== 'cancelled' ? `
               <div style="margin-top:.85rem">
                 <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openGatePass('${r.paymentId}')">
                   Show entry QR pass
@@ -488,14 +753,30 @@
     document.getElementById('gate-pass-content').innerHTML = booking.tickets.map((ticket, index) => `
       <div style="margin:1rem 0;padding:1rem;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm)">
         <strong>${booking.eventTitle}</strong>
-        <div style="color:var(--muted);font-size:.82rem;margin:.35rem 0 0.75rem">Entry pass ${index + 1} of ${booking.tickets.length}</div>
-        <img src="./api/tickets/${ticket.validation_token}/qr?t=${Date.now()}" alt="Unique entry QR pass ${index + 1}"
-          onerror="this.style.display='none';this.nextElementSibling.style.display='block'"
-          style="width:min(260px,80vw);height:min(260px,80vw);display:block;margin:0 auto;background:#fff;border-radius:8px;padding:8px" />
-        <div style="display:none;color:var(--danger);font-size:.82rem;margin:.75rem 0">QR image could not load. Please refresh and try again.</div>
-        <div style="font-size:.72rem;color:var(--muted);margin-top:.6rem">
-          Pass status: ${ticket.status === 'checked_in' ? 'Checked in' : ticket.status}
+        ${booking.eventImage ? `<img src="${booking.eventImage}" alt="${booking.eventTitle}" style="width:100%;max-height:180px;object-fit:cover;border-radius:8px;margin:.75rem 0">` : ''}
+        <div style="font-size:.82rem;color:var(--muted);margin:.35rem 0">
+          ${booking.eventStartsAt ? formatDate(new Date(booking.eventStartsAt.replace(' ', 'T'))) : ''}<br>
+          ${escapeUserHtml(booking.eventVenue || '')}${booking.eventVenueDetails ? ` - ${escapeUserHtml(booking.eventVenueDetails)}` : ''}
         </div>
+        <div style="color:var(--muted);font-size:.82rem;margin:.35rem 0 0.75rem">Entry pass ${index + 1} of ${booking.tickets.length}</div>
+        ${booking.event_status === 'cancelled' ? '<div style="color:var(--danger);font-weight:700;margin:.75rem 0">Event cancelled — this QR entry pass is invalid.</div>' : ticket.status === 'checked_in' ? '' : `<img src="./api/tickets/${ticket.validation_token}/qr?publicBase=${encodeURIComponent(new URL('./', window.location.href).href.replace(/\/+$/, ''))}&t=${Date.now()}" alt="Unique entry QR pass ${index + 1}"
+          onerror="this.style.display='none';this.nextElementSibling.style.display='block'"
+          style="width:min(260px,80vw);height:min(260px,80vw);display:block;margin:0 auto;background:#fff;border-radius:8px;padding:8px" />`}
+        <div style="display:none;color:var(--danger);font-size:.82rem;margin:.75rem 0">QR image could not load. Please refresh and try again.</div>
+        <div style="font-size:.82rem;font-weight:700;margin-top:.6rem;color:${ticket.status === 'checked_in' ? '#16a34a' : '#f59e0b'}">
+          ${ticket.status === 'checked_in' ? 'ENTRY COMPLETED' : 'ENTRY PENDING'}
+        </div>
+        ${ticket.status === 'checked_in' && ticket.checked_in_at ? `<div style="font-size:.72rem;color:var(--muted)">Entry: ${new Date(ticket.checked_in_at.replace(' ', 'T')).toLocaleString()}</div>` : ''}
+        ${ticket.status === 'checked_in' ? '<div style="font-size:.72rem;color:var(--danger)">QR entry pass disabled</div>' : ''}
+        <a class="btn btn-outline btn-sm" style="margin-top:.75rem"
+          href="./ticket.php?token=${encodeURIComponent(ticket.validation_token)}"
+          target="_blank" rel="noopener">
+          Open event details
+        </a>
+        <button class="btn btn-outline btn-sm" style="margin-top:.75rem;margin-left:.35rem" type="button"
+           onclick="copyBookingTicketLink('${ticket.validation_token}')">Copy entry pass link</button>
+        <button class="btn btn-outline btn-sm" style="margin-top:.75rem;margin-left:.35rem" type="button"
+           onclick="downloadEntryQr('${ticket.validation_token}','${booking.paymentId}')">Download QR code</button>
       </div>`).join('');
     modal.classList.add('open');
   }
@@ -545,6 +826,36 @@
     }
     const tabBtn = document.getElementById('notif-tab-btn');
     if (tabBtn) tabBtn.textContent = ` Notifications${unread ? ` (${unread})` : ''}`;
+  }
+
+  function escapeUserHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[character]));
+  }
+
+  async function copyBookingTicketLink(token) {
+    const url = new URL('./ticket.php?token=' + encodeURIComponent(token), window.location.href).href;
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast('Entry pass link copied.', 'success');
+    } catch (_) {
+      window.prompt('Copy this entry pass link:', url);
+    }
+  }
+
+  async function downloadEntryQr(token, bookingId) {
+    const url = new URL(`./api/tickets/${encodeURIComponent(token)}/qr`, window.location.href);
+    url.searchParams.set('publicBase', new URL('./', window.location.href).href.replace(/\/+$/, ''));
+    url.searchParams.set('download', '1');
+    const response = await fetch(url.href, { credentials: 'include' });
+    if (!response.ok) throw new Error('QR code could not be downloaded.');
+    const objectUrl = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = `entry-pass-${bookingId}.svg`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
   }
 </script>
 </body>

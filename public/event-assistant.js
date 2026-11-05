@@ -137,7 +137,12 @@
     addMessage('user', escapeHtml(question));
     addMessage('assistant', '<span class="event-assistant-loading">Finding the best matches…</span>');
     const events = await loadEvents();
-    const text = question.toLower().trim();
+    const text = String(question).toLowerCase().trim();
+
+    if (/^(hi|hello|hey|good morning|good afternoon|good evening)[!.]?$/i.test(text)) {
+      updateLastMessage('Hi, How may I help you?');
+      return;
+    }
 
     let matches = events.filter(event => {
       const date = eventDate(event);

@@ -53,10 +53,32 @@
 
 <nav class="navbar">
   <a href="index.html?home=member-cta-2" class="logo"> <span>Spearing</span> Events</a>
+  <button class="admin-mobile-nav-toggle" type="button" onclick="toggleAdminSidebar()" aria-label="Open admin navigation">☰</button>
   <ul class="nav-links" id="nav-links">
     <li><a href="index.html?home=member-cta-2">Home</a></li>
   </ul>
 </nav>
+
+<aside class="admin-navigation" id="admin-navigation" aria-label="Admin navigation">
+  <div class="admin-navigation-brand">
+    <span>Admin workspace</span>
+    <strong>Spearing Events</strong>
+  </div>
+  <nav class="admin-navigation-menu">
+    <button type="button" class="admin-nav-item active" data-admin-section="dashboard" onclick="switchAdminTab('dashboard')"><span>⌂</span>Dashboard</button>
+    <button type="button" class="admin-nav-item" data-admin-section="events" onclick="switchAdminTab('events')"><span>▦</span>Events</button>
+    <button type="button" class="admin-nav-item" data-admin-section="cancelled-events" onclick="switchAdminTab('cancelled-events')"><span>⊘</span>Cancelled Events</button>
+    <button type="button" class="admin-nav-item" data-admin-section="registrations" onclick="switchAdminTab('registrations')"><span>▤</span>Registrations</button>
+    <button type="button" class="admin-nav-item" data-admin-section="users" onclick="switchAdminTab('users')"><span>♙</span>Users Management</button>
+    <button type="button" class="admin-nav-item" data-admin-section="entry-passes" onclick="switchAdminTab('entry-passes')"><span>▧</span>Entry Management</button>
+    <button type="button" class="admin-nav-item" data-admin-section="payments" onclick="switchAdminTab('payments')"><span>▣</span>Payment QR</button>
+    <button type="button" class="admin-nav-item" data-admin-section="support" onclick="switchAdminTab('support')"><span>?</span>Support Requests</button>
+    <button type="button" class="admin-nav-item" data-admin-section="reports" onclick="switchAdminTab('reports')"><span>◫</span>Reports &amp; Analytics</button>
+    <button type="button" class="admin-nav-item" data-admin-section="settings" onclick="switchAdminTab('settings')"><span>⚙</span>Settings</button>
+    <button type="button" class="admin-nav-item admin-nav-logout" onclick="logoutAdmin()"><span>↪</span>Logout</button>
+  </nav>
+</aside>
+<div class="admin-navigation-backdrop" onclick="toggleAdminSidebar(false)"></div>
 
 <header class="dash-header admin-heading">
   <div>
@@ -64,10 +86,11 @@
     <h1>Admin Console</h1>
     <p>Manage events, bookings, attendees, and payment details.</p>
   </div>
-  <a class="btn btn-primary admin-create-link" href="#event-form">Create an event</a>
+  <button class="btn btn-primary admin-create-link" type="button" onclick="switchAdminTab('events'); switchEventsCategory('create')">Create an event</button>
 </header>
 
 <!-- Stats strip -->
+<div class="admin-dashboard-panel" id="panel-dashboard">
 <section class="admin-stats" aria-label="Spearing Events overview">
   <div class="admin-stat-card"><span>Events</span><strong id="s-total">—</strong><small>In your workspace</small></div>
   <div class="admin-stat-card"><span>Registered users</span><strong id="s-users">—</strong><small>Across Spearing Events</small></div>
@@ -91,6 +114,89 @@
     <h3>Top-performing events</h3>
     <div class="analytics-subtitle">Ranked by confirmed revenue</div>
     <div id="analytics-top-events">Loading analytics…</div>
+  </div>
+</section>
+</div>
+
+<section class="admin-secondary-panel" id="panel-reports" hidden>
+  <h2>Reports &amp; Analytics</h2>
+  <p>Revenue, performance, and top event reporting are available from the live dashboard analytics.</p>
+  <button class="btn btn-primary" onclick="switchAdminTab('dashboard')">View dashboard analytics</button>
+</section>
+
+<section class="admin-secondary-panel" id="panel-settings" hidden>
+  <h2>Settings</h2>
+  <p>Manage your administrator account and platform preferences.</p>
+  <div class="settings-layout">
+    <div class="settings-menu" role="tablist">
+      <button class="settings-menu-item active" type="button" data-settings-category="profile"><span>👤</span>Admin Profile</button>
+      <button class="settings-menu-item" type="button" data-settings-category="security"><span>🔒</span>Security Settings</button>
+      <button class="settings-menu-item" type="button" data-settings-category="notifications"><span>🔔</span>Notification Settings</button>
+      <button class="settings-menu-item" type="button" data-settings-category="payment"><span>💳</span>Payment Settings</button>
+      <button class="settings-menu-item" type="button" data-settings-category="booking"><span>🎟️</span>Booking Settings</button>
+      <button class="settings-menu-item" type="button" data-settings-category="qr"><span>▧</span>QR Code Settings</button>
+      <button class="settings-menu-item" type="button" data-settings-category="appearance"><span>◐</span>Appearance Settings</button>
+      <button class="settings-menu-item" type="button" data-settings-category="system"><span>ⓘ</span>System Information</button>
+    </div>
+    <div class="settings-content">
+      <div class="settings-panel active" data-settings-panel="profile">
+        <h3>Admin Profile</h3>
+        <div class="settings-grid">
+          <label>Full name<input id="settings-profile-name" maxlength="120"></label>
+          <label>Email address<input id="settings-profile-email" type="email" maxlength="254"></label>
+          <label>Username<input id="settings-profile-username" maxlength="50"></label>
+          <label>Phone number<input id="settings-profile-phone" maxlength="30"></label>
+          <label class="settings-grid-wide">Profile picture URL<input id="settings-profile-picture" maxlength="255" placeholder="https://example.com/profile.jpg"></label>
+        </div>
+        <div class="settings-actions"><button class="btn btn-secondary" type="button" onclick="loadAdminSettings()">Cancel</button><button class="btn btn-primary" type="button" onclick="saveAdminProfile()">Save Changes</button></div>
+      </div>
+      <div class="settings-panel" data-settings-panel="security">
+        <h3>Security Settings</h3>
+        <div class="settings-grid">
+          <label>Current password<input id="settings-current-password" type="password"></label>
+          <label>New password<input id="settings-new-password" type="password" minlength="10"></label>
+        </div>
+        <div class="settings-actions"><button class="btn btn-primary" type="button" onclick="changeAdminPassword()">Change Password</button></div>
+      </div>
+      <div class="settings-panel" data-settings-panel="notifications">
+        <h3>Notification Settings</h3>
+        <label class="settings-toggle"><input id="notify-bookings" type="checkbox">New bookings</label>
+        <label class="settings-toggle"><input id="notify-payments" type="checkbox">Payment updates</label>
+        <label class="settings-toggle"><input id="notify-registrations" type="checkbox">New registrations</label>
+        <label class="settings-toggle"><input id="notify-cancellations" type="checkbox">Event cancellations</label>
+        <div class="settings-actions"><button class="btn btn-secondary" type="button" onclick="loadAdminSettings()">Cancel</button><button class="btn btn-primary" type="button" onclick="saveSettingsCategory('notifications', getNotificationSettings())">Save Changes</button></div>
+      </div>
+      <div class="settings-panel" data-settings-panel="payment">
+        <h3>Payment Settings</h3>
+        <label>Payment method<select id="settings-payment-method"><option value="upi">UPI</option><option value="razorpay">Razorpay</option><option value="manual">Manual verification</option></select></label>
+        <label>Transaction handling<select id="settings-payment-status"><option value="manual">Require manual verification</option><option value="automatic">Automatic status updates</option></select></label>
+        <label class="settings-toggle"><input id="allow-refunds" type="checkbox">Allow refund requests</label>
+        <div class="settings-actions"><button class="btn btn-secondary" type="button" onclick="loadAdminSettings()">Cancel</button><button class="btn btn-primary" type="button" onclick="saveSettingsCategory('payment', {method: settingsValue('settings-payment-method'), transactionStatus: settingsValue('settings-payment-status'), allowRefunds: settingsChecked('allow-refunds')})">Save Changes</button></div>
+      </div>
+      <div class="settings-panel" data-settings-panel="booking">
+        <h3>Booking Settings</h3>
+        <div class="settings-grid"><label>Maximum bookings per customer<input id="settings-booking-limit" type="number" min="1" max="100"></label><label>Maximum tickets per booking<input id="settings-ticket-limit" type="number" min="1" max="10"></label></div>
+        <label>Cancellation deadline<select id="settings-cancellation-rule"><option value="before_event">Before event starts</option><option value="24_hours">Up to 24 hours before event</option><option value="disabled">Disabled</option></select></label>
+        <div class="settings-actions"><button class="btn btn-secondary" type="button" onclick="loadAdminSettings()">Cancel</button><button class="btn btn-primary" type="button" onclick="saveSettingsCategory('booking', {bookingLimit: settingsNumber('settings-booking-limit'), ticketLimit: settingsNumber('settings-ticket-limit'), cancellationRule: settingsValue('settings-cancellation-rule')})">Save Changes</button></div>
+      </div>
+      <div class="settings-panel" data-settings-panel="qr">
+        <h3>QR Code Settings</h3>
+        <div class="settings-grid"><label>Pass validity (hours, 0 = until event)<input id="settings-qr-validity" type="number" min="0" max="8760"></label></div>
+        <label class="settings-toggle"><input id="prevent-duplicate-scans" type="checkbox">Prevent duplicate scans</label>
+        <label class="settings-toggle"><input id="require-organizer-verification" type="checkbox">Require organizer verification</label>
+        <div class="settings-actions"><button class="btn btn-secondary" type="button" onclick="loadAdminSettings()">Cancel</button><button class="btn btn-primary" type="button" onclick="saveSettingsCategory('qr', {validityHours: settingsNumber('settings-qr-validity'), preventDuplicates: settingsChecked('prevent-duplicate-scans'), requireVerification: settingsChecked('require-organizer-verification')})">Save Changes</button></div>
+      </div>
+      <div class="settings-panel" data-settings-panel="appearance">
+        <h3>Appearance Settings</h3>
+        <label>Theme<select id="settings-theme"><option value="light">Light mode</option><option value="dark">Dark mode</option></select></label>
+        <div class="settings-actions"><button class="btn btn-secondary" type="button" onclick="loadAdminSettings()">Cancel</button><button class="btn btn-primary" type="button" onclick="saveSettingsCategory('appearance', {theme: settingsValue('settings-theme')}); applySettingsTheme()">Save Changes</button></div>
+      </div>
+      <div class="settings-panel" data-settings-panel="system">
+        <h3>System Information</h3>
+        <div class="settings-grid"><div class="analytics-card"><strong>Application version</strong><p>1.0.0</p></div><div class="analytics-card"><strong>Database status</strong><p id="settings-db-status">Checking…</p></div></div>
+      </div>
+      <div id="settings-save-message" class="settings-save-message" role="status"></div>
+    </div>
   </div>
 </section>
 
@@ -184,28 +290,80 @@
       <button class="admin-tab-btn active" id="admin-tab-events" role="tab" aria-controls="panel-events" aria-selected="true" onclick="switchAdminTab('events')">Events</button>
       <button class="admin-tab-btn" id="admin-tab-registrations" role="tab" aria-controls="panel-registrations" aria-selected="false" onclick="switchAdminTab('registrations')">Registrations <span id="pending-badge" class="admin-pending-badge"></span></button>
       <button class="admin-tab-btn" id="admin-tab-users" role="tab" aria-controls="panel-users" aria-selected="false" onclick="switchAdminTab('users')">Users</button>
+      <button class="admin-tab-btn" id="admin-tab-entry-passes" role="tab" aria-controls="panel-entry-passes" aria-selected="false" onclick="switchAdminTab('entry-passes')">Entry Management</button>
       <button class="admin-tab-btn" id="admin-tab-payments" role="tab" aria-controls="panel-payments" aria-selected="false" onclick="switchAdminTab('payments')">Payment QR</button>
+    </div>
+
+    <!-- Entry pass management -->
+    <div class="admin-tab-panel" id="panel-entry-passes" role="tabpanel" aria-labelledby="admin-tab-entry-passes">
+      <div style="margin:1.25rem 0">
+        <h3>Entry Management</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.75rem;margin:1rem 0">
+          <div class="admin-stat-card"><small>Total Bookings</small><strong id="entry-stat-bookings">0</strong></div>
+          <div class="admin-stat-card"><small>Checked in</small><strong id="entry-stat-checked">0</strong></div>
+          <div class="admin-stat-card"><small>Pending</small><strong id="entry-stat-pending">0</strong></div>
+          <div class="admin-stat-card"><small>Cancelled</small><strong id="entry-stat-cancelled">0</strong></div>
+        </div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">
+          <input id="entry-pass-token" type="text" placeholder="Paste pass token or scanned URL" style="max-width:420px">
+          <button type="button" class="btn btn-primary" onclick="checkInEntryPass()">Verify and check in</button>
+          <button type="button" class="btn btn-outline" onclick="startEntryScanner()">Scan with camera</button>
+        </div>
+        <video id="entry-scanner-video" playsinline muted style="display:none;width:min(100%,420px);max-height:320px;background:#000;border-radius:.5rem"></video>
+        <div id="entry-pass-result" role="status"></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Sl. No.</th><th>User Name</th><th>User Email</th><th>Event Name</th><th>Event Date</th><th>Venue</th><th>Booking ID</th><th>Booking Status</th><th>QR Code</th><th>Entry Status</th><th>Scanned Date</th><th>Scanned Time</th><th>Action</th></tr></thead>
+          <tbody id="entry-pass-tbody"><tr><td colspan="13" style="text-align:center;padding:2rem">Loading entries…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Cancelled events tab ─────────────────────────── -->
+    <div class="admin-tab-panel" id="panel-cancelled-events" role="tabpanel">
+      <div style="margin:1.25rem 0">
+        <h3>Cancelled Events</h3>
+        <p style="color:var(--muted)">Events cancelled by an administrator and the notification reason shown to registered users.</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Event</th><th>Event date</th><th>Cancellation date</th><th>Reason</th><th>Registered users</th><th>Action</th></tr></thead>
+          <tbody id="cancelled-events-tbody"><tr><td colspan="6" style="text-align:center;padding:2rem">Loading cancelled events…</td></tr></tbody>
+        </table>
+      </div>
     </div>
 
     <!-- ── Events tab ────────────────────────────────────── -->
     <div class="admin-tab-panel active" id="panel-events" role="tabpanel" aria-labelledby="admin-tab-events">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin:1.25rem 0;flex-wrap:wrap;gap:.75rem">
-        <h3>All Events</h3>
-        <input type="text" id="admin-search" placeholder="Search events…" style="max-width:240px" oninput="adminEventPage=1;renderTable()" />
-      </div>
-      <div id="admin-event-pagination" class="admin-pagination" aria-label="Event list pagination"></div>
-
-      <!-- Card grid view -->
-      <div class="events-grid" id="admin-events-grid" style="margin-bottom:2rem">
-        <div class="empty-state"><div class="icon"></div><p>Loading…</p></div>
+      <div class="events-section-menu" role="tablist" aria-label="Event management views">
+        <button type="button" class="events-section-item active" data-events-category="create" onclick="switchEventsCategory('create')">➕ Create Event</button>
+        <button type="button" class="events-section-item" data-events-category="cards" onclick="switchEventsCategory('cards')">▦ All Events</button>
+        <button type="button" class="events-section-item" data-events-category="table" onclick="switchEventsCategory('table')">≡ Table View</button>
       </div>
 
-      <!-- Table view -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
-        <h4 style="color:var(--muted);font-size:.85rem;font-weight:500"> Table View</h4>
+      <div class="events-section-panel" data-events-panel="create">
+        <h3>Create or update an event</h3>
       </div>
-      <div class="table-wrap">
-        <table>
+
+      <div class="events-section-panel" data-events-panel="cards" hidden>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:1rem 0;flex-wrap:wrap;gap:.75rem">
+          <h3>All Events</h3>
+          <input type="text" id="admin-search" placeholder="Search events…" style="max-width:240px" oninput="adminEventPage=1;renderTable()" />
+        </div>
+        <div id="admin-event-pagination" class="admin-pagination" aria-label="Event list pagination"></div>
+        <div class="events-grid" id="admin-events-grid">
+          <div class="empty-state"><div class="icon"></div><p>Loading…</p></div>
+        </div>
+      </div>
+
+      <div class="events-section-panel" data-events-panel="table" hidden>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:1rem 0;flex-wrap:wrap;gap:.75rem">
+          <h3>Table View</h3>
+          <input type="text" placeholder="Search events…" style="max-width:240px" oninput="document.getElementById('admin-search').value=this.value;adminEventPage=1;renderTable()" />
+        </div>
+        <div class="table-wrap">
+          <table>
           <thead>
             <tr>
               <th>#</th>
@@ -223,7 +381,8 @@
           <tbody id="events-tbody">
             <tr><td colspan="10" style="text-align:center;color:var(--muted);padding:2rem">Loading…</td></tr>
           </tbody>
-        </table>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -334,6 +493,14 @@
         <div class="empty-state" style="grid-column:1/-1"><div class="icon"></div><p>Loading users…</p></div>
       </div>
     </div>
+
+    <div class="admin-tab-panel" id="panel-support" role="tabpanel" aria-labelledby="admin-tab-support">
+      <div style="margin:1.25rem 0">
+        <h3>Support Requests</h3>
+        <p style="color:var(--muted)">View user complaints and respond to support tickets.</p>
+      </div>
+      <div id="admin-support-list"><div class="empty-state">Loading support requests...</div></div>
+    </div>
   </main>
 </div>
 
@@ -348,6 +515,39 @@
     <div class="modal-actions">
       <button class="btn btn-danger" onclick="confirmDelete()">Archive event</button>
       <button class="btn btn-outline" onclick="closeConfirm()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Event cancellation modal -->
+<div class="modal-overlay" id="event-cancel-modal">
+  <div class="modal" style="max-width:480px;text-align:left">
+    <div class="modal-header">
+      <h3>Cancel event</h3>
+      <button class="modal-close" onclick="closeCancelEventModal()">Close</button>
+    </div>
+    <p>Choose why <strong id="cancel-event-name"></strong> is being cancelled. This reason will be shown to booked users.</p>
+    <div class="form-group">
+      <label for="event-cancel-reason">Cancellation reason *</label>
+      <select id="event-cancel-reason" onchange="toggleCustomCancelReason()">
+        <option value="">Select a reason…</option>
+        <option>Limited seats / Venue capacity reached.</option>
+        <option>Insufficient bookings.</option>
+        <option>Payment processing issues.</option>
+        <option>Venue unavailable.</option>
+        <option>Technical issues.</option>
+        <option>Organiser unavailable.</option>
+        <option>Unexpected circumstances.</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="form-group" id="custom-cancel-reason-wrap" style="display:none">
+      <label for="event-cancel-custom-reason">Custom reason *</label>
+      <textarea id="event-cancel-custom-reason" rows="3" maxlength="1000"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" onclick="confirmCancelEvent()">Cancel event</button>
+      <button class="btn btn-outline" onclick="closeCancelEventModal()">Keep event</button>
     </div>
   </div>
 </div>
@@ -376,7 +576,7 @@
 
 <div id="toast-container"></div>
 <script src="shared.js?v=10"></script>
-<script src="api-client.js?v=10"></script>
+<script src="api-client.js?v=11"></script>
 <script>
   let allEvents    = [];
   let deleteTarget = null;
@@ -399,30 +599,352 @@
   })();
 
   // ── Tab switching ──────────────────────────────────────────
+  let activeEventView = 'create';
+
+  function switchEventsCategory(category) {
+    activeEventView = category;
+    document.querySelectorAll('[data-events-category]').forEach(button => {
+      button.classList.toggle('active', button.dataset.eventsCategory === category);
+    });
+    document.querySelectorAll('[data-events-panel]').forEach(panel => {
+      const active = panel.dataset.eventsPanel === category;
+      panel.hidden = !active;
+      panel.classList.toggle('active', active);
+    });
+
+    const eventForm = document.getElementById('event-form');
+    const adminBody = document.querySelector('.admin-body');
+    const createMode = category === 'create';
+    if (eventForm) eventForm.style.display = createMode ? '' : 'none';
+    adminBody.classList.toggle('single-content-column', !createMode);
+    if (!createMode) renderTable();
+  }
+
+  document.querySelectorAll('[data-settings-category]').forEach(button => {
+    button.addEventListener('click', () => {
+      document.querySelectorAll('[data-settings-category]').forEach(item => item.classList.toggle('active', item === button));
+      document.querySelectorAll('[data-settings-panel]').forEach(panel => panel.classList.toggle('active', panel.dataset.settingsPanel === button.dataset.settingsCategory));
+    });
+  });
+
+  const settingsValue = id => document.getElementById(id)?.value || '';
+  const settingsNumber = id => Number(settingsValue(id) || 0);
+  const settingsChecked = id => document.getElementById(id)?.checked === true;
+
+  function settingsMessage(message, isError = false) {
+    const element = document.getElementById('settings-save-message');
+    if (!element) return;
+    element.textContent = message;
+    element.className = `settings-save-message visible ${isError ? 'error' : 'success'}`;
+    window.setTimeout(() => element.classList.remove('visible'), 5000);
+  }
+
+  async function loadAdminSettings() {
+    try {
+      const data = await EventSpot.api('/admin/settings');
+      const profile = data.profile || {};
+      document.getElementById('settings-profile-name').value = profile.fullName || '';
+      document.getElementById('settings-profile-email').value = profile.email || '';
+      document.getElementById('settings-profile-username').value = profile.username || '';
+      document.getElementById('settings-profile-phone').value = profile.phone || '';
+      document.getElementById('settings-profile-picture').value = profile.profilePicture || '';
+      const saved = data.settings || {};
+      setSettingsValues(saved.notifications, {
+        bookings: 'notify-bookings', payments: 'notify-payments', registrations: 'notify-registrations', cancellations: 'notify-cancellations'
+      });
+      setSettingsValue(saved.payment, 'method', 'settings-payment-method');
+      setSettingsValue(saved.payment, 'transactionStatus', 'settings-payment-status');
+      setSettingsChecked(saved.payment, 'allowRefunds', 'allow-refunds');
+      setSettingsValue(saved.booking, 'bookingLimit', 'settings-booking-limit');
+      setSettingsValue(saved.booking, 'ticketLimit', 'settings-ticket-limit');
+      setSettingsValue(saved.booking, 'cancellationRule', 'settings-cancellation-rule');
+      setSettingsValue(saved.qr, 'validityHours', 'settings-qr-validity');
+      setSettingsChecked(saved.qr, 'preventDuplicates', 'prevent-duplicate-scans', true);
+      setSettingsChecked(saved.qr, 'requireVerification', 'require-organizer-verification', true);
+      setSettingsValue(saved.appearance, 'theme', 'settings-theme');
+      document.getElementById('settings-db-status').textContent = 'Connected and operational';
+      applySettingsTheme();
+    } catch (error) {
+      document.getElementById('settings-db-status').textContent = 'Settings service unavailable';
+      settingsMessage(error.message, true);
+    }
+  }
+
+  function setSettingsValue(source, key, id) {
+    if (source && source[key] !== undefined && document.getElementById(id)) document.getElementById(id).value = source[key];
+  }
+  function setSettingsChecked(source, key, id, fallback = false) {
+    if (document.getElementById(id)) document.getElementById(id).checked = source && source[key] !== undefined ? !!source[key] : fallback;
+  }
+  function setSettingsValues(source, mapping) {
+    Object.entries(mapping).forEach(([key, id]) => setSettingsChecked(source, key, id));
+  }
+
+  async function saveAdminProfile() {
+    try {
+      await EventSpot.api('/auth/profile', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          fullName: settingsValue('settings-profile-name'), email: settingsValue('settings-profile-email'),
+          username: settingsValue('settings-profile-username'), phone: settingsValue('settings-profile-phone'),
+          profilePicture: settingsValue('settings-profile-picture')
+        })
+      });
+      await EventSpot.refreshSession();
+      settingsMessage('Profile changes saved successfully.');
+      await loadAdminSettings();
+    } catch (error) { settingsMessage(error.message, true); }
+  }
+
+  async function changeAdminPassword() {
+    try {
+      await EventSpot.api('/auth/password', {
+        method: 'PATCH',
+        body: JSON.stringify({ currentPassword: settingsValue('settings-current-password'), newPassword: settingsValue('settings-new-password') })
+      });
+      document.getElementById('settings-current-password').value = '';
+      document.getElementById('settings-new-password').value = '';
+      settingsMessage('Password changed successfully.');
+    } catch (error) { settingsMessage(error.message, true); }
+  }
+
+  async function loadAdminSupportRequests() {
+    const container = document.getElementById('admin-support-list');
+    try {
+      const data = await EventSpot.api('/admin/support/requests');
+      container.innerHTML = (data.requests || []).length ? data.requests.map(request => `
+        <div class="card" style="padding:1rem;margin-bottom:1rem">
+          <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+            <div><strong>${escapeHtml(request.subject)}</strong><div style="color:var(--muted)">Ticket ${escapeHtml(request.id)} | ${escapeHtml(request.full_name || request.username)} | ${escapeHtml(request.email)}</div></div>
+            <span>${escapeHtml(request.status)}</span>
+          </div>
+          <p style="white-space:pre-wrap">${escapeHtml(request.message)}</p>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <select id="support-status-${request.id}">
+              <option value="open"${request.status === 'open' ? ' selected' : ''}>Open</option>
+              <option value="in_progress"${request.status === 'in_progress' ? ' selected' : ''}>In Progress</option>
+              <option value="resolved"${request.status === 'resolved' ? ' selected' : ''}>Resolved</option>
+            </select>
+            <textarea id="support-response-${request.id}" rows="3" placeholder="Administrator response" style="flex:1;min-width:240px">${escapeHtml(request.admin_response || '')}</textarea>
+            <button class="btn btn-primary" onclick="respondAdminSupport('${request.id}')">Save response</button>
+          </div>
+        </div>`).join('') : '<div class="empty-state">No support requests have been submitted.</div>';
+    } catch (error) {
+      container.innerHTML = `<div style="color:var(--danger)">${escapeHtml(error.message)}</div>`;
+    }
+  }
+
+  async function respondAdminSupport(id) {
+    try {
+      await EventSpot.api(`/admin/support/requests/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: document.getElementById(`support-status-${id}`).value,
+          response: document.getElementById(`support-response-${id}`).value
+        })
+      });
+      showToast('Support response saved.', 'success');
+      loadAdminSupportRequests();
+    } catch (error) { showToast(error.message, 'error'); }
+  }
+
+  async function saveSettingsCategory(category, values) {
+    try {
+      await EventSpot.api('/admin/settings', { method: 'PUT', body: JSON.stringify({ category, values }) });
+      settingsMessage(`${category.charAt(0).toUpperCase() + category.slice(1)} settings saved successfully.`);
+    } catch (error) { settingsMessage(error.message, true); }
+  }
+
+  function getNotificationSettings() {
+    return { bookings: settingsChecked('notify-bookings'), payments: settingsChecked('notify-payments'), registrations: settingsChecked('notify-registrations'), cancellations: settingsChecked('notify-cancellations') };
+  }
+  function applySettingsTheme() {
+    const theme = settingsValue('settings-theme') || 'light';
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('eventspot-theme', theme);
+  }
+
   function switchAdminTab(name) {
     document.querySelectorAll('.admin-tab-btn').forEach(b => {
       b.classList.remove('active');
       b.setAttribute('aria-selected', 'false');
     });
     document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.remove('active'));
-    const idx = { events: 0, registrations: 1, users: 2, payments: 3 }[name];
-    const selectedTab = document.querySelectorAll('.admin-tab-btn')[idx];
-    selectedTab.classList.add('active');
-    selectedTab.setAttribute('aria-selected', 'true');
-    document.getElementById('panel-' + name).classList.add('active');
+    document.querySelectorAll('.admin-nav-item[data-admin-section]').forEach(button => {
+      button.classList.toggle('active', button.dataset.adminSection === name);
+    });
+    const dashboard = document.getElementById('panel-dashboard');
+    const reports = document.getElementById('panel-reports');
+    const settings = document.getElementById('panel-settings');
+    const adminBody = document.querySelector('.admin-body');
+    dashboard.hidden = name !== 'dashboard';
+    reports.hidden = name !== 'reports';
+    settings.hidden = name !== 'settings';
+    adminBody.style.display = ['dashboard', 'reports', 'settings'].includes(name) ? 'none' : '';
+
+    if (!['dashboard', 'reports', 'settings'].includes(name)) {
+      const eventForm = document.getElementById('event-form');
+      eventForm.style.display = name === 'events' && activeEventView === 'create' ? '' : 'none';
+      adminBody.classList.toggle('single-content-column', name !== 'events');
+      const panel = document.getElementById('panel-' + name);
+      if (panel) panel.classList.add('active');
+    }
     if (name === 'registrations') renderRegistrations();
     if (name === 'payments') loadPaymentQr();
+    if (name === 'entry-passes') loadEntryPasses();
+    if (name === 'events') switchEventsCategory(activeEventView);
+    if (name === 'cancelled-events') renderCancelledEvents();
+    if (name === 'settings') loadAdminSettings();
+    if (name === 'support') loadAdminSupportRequests();
     if (name === 'users') {
       refreshManagedUsers();
     }
+    toggleAdminSidebar(false);
   }
+  switchAdminTab('dashboard');
+
+  function toggleAdminSidebar(force) {
+    const sidebar = document.getElementById('admin-navigation');
+    const open = typeof force === 'boolean' ? force : !sidebar.classList.contains('open');
+    sidebar.classList.toggle('open', open);
+    document.body.classList.toggle('admin-nav-open', open);
+  }
+
+  async function logoutAdmin() {
+    try {
+      if (typeof EventSpot.logout === 'function') {
+        await EventSpot.logout();
+        return;
+      }
+    } catch (_) {}
+    window.location.href = 'login.html';
+  }
+
+    function entryPassToken(value) {
+      const match = String(value).match(/[a-f0-9]{64}/i);
+      return match ? match[0] : String(value).trim();
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[character]));
+    }
+
+    function formatAdminDate(value) {
+      const date = new Date(String(value || '').replace(' ', 'T'));
+      return Number.isNaN(date.getTime()) ? String(value || '') : date.toLocaleString();
+    }
+
+    async function loadEntryPasses() {
+      try {
+        const data = await EventSpot.adminEntryPasses();
+        document.getElementById('entry-stat-bookings').textContent = data.stats.bookings;
+        document.getElementById('entry-stat-checked').textContent = data.stats.checkedIn;
+        document.getElementById('entry-stat-pending').textContent = data.stats.pending;
+        document.getElementById('entry-stat-cancelled').textContent = data.stats.cancelled;
+        document.getElementById('entry-pass-tbody').innerHTML = data.passes.map((pass, index) => {
+          const canCheckIn = pass.bookingStatus === 'confirmed' && pass.passStatus === 'active';
+          const status = pass.bookingStatus === 'cancelled' ? 'CANCELLED' : pass.passStatus === 'checked_in' ? 'ENTRY COMPLETED' : 'PENDING ENTRY';
+          const statusColour = status === 'CANCELLED' ? '#ef4444' : status === 'ENTRY COMPLETED' ? '#16a34a' : '#f59e0b';
+          const scanned = pass.checkedInAt ? new Date(pass.checkedInAt.replace(' ', 'T')) : null;
+          return `<tr>
+            <td>${index + 1}</td><td>${escapeHtml(pass.userName)}</td><td>${escapeHtml(pass.email)}</td>
+            <td>${escapeHtml(pass.eventTitle)}</td><td>${escapeHtml(formatAdminDate(pass.eventDate))}</td><td>${escapeHtml(pass.venue)}</td>
+            <td>${escapeHtml(pass.bookingId)}</td><td>${escapeHtml(pass.bookingStatus)}</td>
+            <td><img src="./api/tickets/${encodeURIComponent(pass.token)}/qr?publicBase=${encodeURIComponent(new URL('./', window.location.href).href.replace(/\/+$/, ''))}&t=${Date.now()}" alt="QR code for booking ${escapeHtml(pass.bookingId)}" style="width:120px;height:120px;object-fit:contain;background:#fff;border-radius:6px;padding:5px">
+              <button type="button" class="btn btn-outline btn-sm" style="display:block;margin:.35rem auto 0" onclick="downloadEntryQr('${pass.token}','${escapeHtml(pass.bookingId)}')">Download</button></td>
+            <td><span style="color:${statusColour};font-weight:700">${status}</span></td>
+            <td>${scanned ? scanned.toLocaleDateString() : '-'}</td><td>${scanned ? scanned.toLocaleTimeString() : '-'}</td>
+            <td>${canCheckIn ? `<button class="btn btn-outline btn-sm" onclick="checkInEntryPass('${pass.token}')">Check in</button>` : '-'}</td>
+          </tr>`;
+        }).join('') || '<tr><td colspan="13" style="text-align:center;padding:2rem">No entry passes generated.</td></tr>';
+      } catch (error) {
+        document.getElementById('entry-pass-tbody').innerHTML = `<tr><td colspan="13" style="color:var(--danger)">${escapeHtml(error.message)}</td></tr>`;
+      }
+
+      async function downloadEntryQr(token, bookingId) {
+        const url = new URL(`./api/tickets/${encodeURIComponent(token)}/qr`, window.location.href);
+        url.searchParams.set('publicBase', new URL('./', window.location.href).href.replace(/\/+$/, ''));
+        url.searchParams.set('download', '1');
+        const response = await fetch(url.href, { credentials: 'include' });
+        if (!response.ok) throw new Error('QR code could not be downloaded.');
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = `entry-pass-${bookingId}.svg`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(objectUrl);
+      }
+    }
+
+  let entryScannerStream = null;
+  let entryScannerBusy = false;
+
+  async function startEntryScanner() {
+    const result = document.getElementById('entry-pass-result');
+    if (!('BarcodeDetector' in window)) {
+      result.innerHTML = '<div style="color:var(--danger)">Camera QR scanning is not supported by this browser. Use Chrome on Android or paste the scanned URL.</div>';
+      return;
+    }
+    try {
+      entryScannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      const video = document.getElementById('entry-scanner-video');
+      video.srcObject = entryScannerStream;
+      video.style.display = 'block';
+      await video.play();
+      const detector = new BarcodeDetector({ formats: ['qr_code'] });
+      const scan = async () => {
+        if (!entryScannerStream || entryScannerBusy) return;
+        try {
+          const codes = await detector.detect(video);
+          if (codes.length) {
+            entryScannerBusy = true;
+            document.getElementById('entry-pass-token').value = codes[0].rawValue;
+            await checkInEntryPass(codes[0].rawValue);
+            setTimeout(() => { entryScannerBusy = false; }, 1500);
+          }
+        } catch (_) {}
+        if (entryScannerStream) requestAnimationFrame(scan);
+      };
+      requestAnimationFrame(scan);
+    } catch (error) {
+      result.innerHTML = `<div style="color:var(--danger)">Camera could not start: ${escapeHtml(error.message)}</div>`;
+    }
+  }
+
+    async function checkInEntryPass(token) {
+      token = entryPassToken(token || document.getElementById('entry-pass-token').value);
+      if (!token) return;
+      const result = document.getElementById('entry-pass-result');
+      try {
+        await EventSpot.checkInTicket(token);
+        result.innerHTML = '<div style="color:var(--success)">Entry verified. Guest checked in.</div>';
+        await loadEntryPasses();
+      } catch (error) {
+        result.innerHTML = `<div style="color:var(--danger)">${escapeHtml(error.message || 'Pass could not be checked in.')}</div>`;
+      }
+    }
 
   async function refreshManagedUsers() {
     const grid = document.getElementById('user-card-grid');
     grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><p>Loading users…</p></div>';
     try {
-      const data = await EventSpot.api('/admin/users');
+      const [data, bookingsData] = await Promise.all([
+        EventSpot.api('/admin/users'),
+        EventSpot.api('/admin/bookings')
+      ]);
       EventSpot.state.users = data.users;
+      EventSpot.state.bookings = bookingsData.bookings.map(booking => ({
+        ...booking,
+        username: booking.username || '',
+        eventId: String(booking.event_id),
+        eventTitle: booking.title,
+        amount: Number(booking.total_amount),
+        paymentId: booking.id,
+        status: booking.status === 'confirmed' ? 'approved' : booking.status === 'cancelled' ? 'rejected' : 'pending'
+      }));
       renderUsers();
     } catch (error) {
       grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;color:var(--danger)">${error.message}</div>`;
@@ -431,8 +953,10 @@
 
   // ── Stats ─────────────────────────────────────────────────
   function updateStats() {
-    const regs  = LS.get('registrations') || [];
-    const users = LS.get('users') || [];
+    const apiBookings = EventSpot.state.bookings || [];
+    const apiUsers = EventSpot.state.users || [];
+    const regs = apiBookings.length ? apiBookings : (LS.get('registrations') || []);
+    const users = apiUsers.length ? apiUsers : (LS.get('users') || []);
     const revenue = regs.filter(r => r.status === 'approved').reduce((s, r) => s + (r.amount || 0), 0);
     document.getElementById('s-total').textContent    = allEvents.length;
     document.getElementById('s-users').textContent    = users.length;
@@ -606,6 +1130,7 @@
               <div style="display:flex;gap:.4rem;margin-left:auto">
                 ${e.price > 0 ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();viewEventQr('${e.id}')" title="Dynamic Payment QR for ₹${e.price}"> QR</button>` : ''}
                 <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();startEdit('${e.id}')"> Edit</button>
+                ${e.status !== 'cancelled' ? `<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();openCancelEventModal('${e.id}','${e.title.replace(/'/g, "\\'")}')">Cancel Event</button>` : ''}
                 <button class="btn btn-danger btn-sm" title="Archive event" aria-label="Archive ${e.title}" onclick="event.stopPropagation();promptDelete('${e.id}','${e.title.replace(/'/g, "\\'")}')">Archive</button>
               </div>
             </div>
@@ -657,6 +1182,7 @@
             <div class="action-btns">
               ${e.price > 0 ? `<button class="btn btn-outline btn-sm" onclick="viewEventQr('${e.id}')" title="Dynamic Payment QR for ₹${e.price}"> QR</button>` : ''}
               <button class="btn btn-outline btn-sm" onclick="startEdit('${e.id}')"> Edit</button>
+              ${e.status !== 'cancelled' ? `<button class="btn btn-danger btn-sm" onclick="openCancelEventModal('${e.id}','${e.title.replace(/'/g, "\\'")}')">Cancel Event</button>` : ''}
               <button class="btn btn-danger btn-sm" title="Archive event" aria-label="Archive ${e.title}" onclick="promptDelete('${e.id}','${e.title.replace(/'/g, "\\'")}')">Archive</button>
             </div>
           </td>
@@ -749,13 +1275,19 @@
   }
 
   async function rejectReg(id) {
+    const reason = window.prompt('Why is this booking being rejected? This reason will be shown to the user.');
+    if (reason === null) return;
+    if (!reason.trim()) {
+      showToast('A rejection reason is required.', 'error');
+      return;
+    }
     try {
-      await EventSpot.api(`/admin/bookings/${id}/cancel`, { method: 'POST', body: '{}' });
+      await EventSpot.api(`/admin/bookings/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason: reason.trim() }) });
       await EventSpot.refresh();
       allEvents = await fetchEvents();
       renderRegistrations();
       renderTable();
-      showToast('Booking cancelled.', 'info');
+      showToast('Booking rejected and reason sent to the user.', 'info');
     } catch (error) {
       showToast(error.message, 'error');
     }
@@ -913,8 +1445,20 @@
 
   // ── Users tab ──────────────────────────────────────────────
   function renderUsers() {
-    const users = LS.get('users') || [];
-    const regs  = LS.get('registrations') || [];
+    const apiUsers = EventSpot.state.users || [];
+    const users = apiUsers.length ? apiUsers : (LS.get('users') || []);
+    const apiBookings = EventSpot.state.bookings || [];
+    const regs = apiBookings.length
+      ? apiBookings.map(booking => ({
+          ...booking,
+          username: booking.username || '',
+          eventId: String(booking.event_id || booking.eventId),
+          eventTitle: booking.title || booking.eventTitle,
+          status: booking.status === 'confirmed' ? 'approved' : booking.status === 'cancelled' ? 'rejected' : booking.status === 'approved' ? 'approved' : 'pending',
+          amount: Number(booking.total_amount ?? booking.amount ?? 0),
+          paidAt: booking.created_at || booking.paidAt
+        }))
+      : (LS.get('registrations') || []);
     const query = (document.getElementById('user-search')?.value || '').toLowerCase();
     const sort  = document.getElementById('user-sort')?.value || 'name';
     const grid  = document.getElementById('user-card-grid');
@@ -935,12 +1479,15 @@
     emptyNotice.style.display = 'none';
 
     let list = users.filter(u =>
-      !query || u.username.toLowerCase().includes(query) || (u.email || '').toLowerCase().includes(query)
+      !query || (u.username || '').toLowerCase().includes(query)
+        || (u.full_name || '').toLowerCase().includes(query)
+        || (u.email || '').toLowerCase().includes(query)
     );
 
     if (sort === 'name')     list.sort((a, b) => a.username.localeCompare(b.username));
     if (sort === 'bookings') list.sort((a, b) =>
-      regs.filter(r => r.username === b.username).length - regs.filter(r => r.username === a.username).length
+      Number(b.booking_count || regs.filter(r => r.username === b.username || String(r.user_id) === String(b.id)).length) -
+      Number(a.booking_count || regs.filter(r => r.username === a.username || String(r.user_id) === String(a.id)).length)
     );
     if (sort === 'recent') {
       // Sort by most recently booked
@@ -957,12 +1504,12 @@
     }
 
     grid.innerHTML = list.map(u => {
-      const userRegs  = regs.filter(r => r.username === u.username);
+      const userRegs  = regs.filter(r => r.username === u.username || String(r.user_id || '') === String(u.id));
       const approved  = userRegs.filter(r => r.status === 'approved').length;
       const pending   = userRegs.filter(r => r.status === 'pending').length;
       const rejected  = userRegs.filter(r => r.status === 'rejected').length;
       const totalPaid = userRegs.filter(r => r.status === 'approved').reduce((s, r) => s + (r.amount || 0), 0);
-      const initials  = u.username.slice(0, 2).toUpperCase();
+      const initials  = (u.full_name || u.username || 'User').slice(0, 2).toUpperCase();
 
       // Recent bookings thumbnails (up to 3)
       const recentBookings = [...userRegs].reverse().slice(0, 3);
@@ -996,7 +1543,8 @@
           <div class="user-card-head">
             <div class="user-avatar">${initials}</div>
             <div>
-              <div class="user-card-name"> ${u.username}</div>
+              <div class="user-card-name">${u.full_name || u.username}</div>
+              <div style="font-size:.78rem;color:var(--muted)">Username: ${u.username}</div>
               <div class="user-card-email">${u.email || 'No email'}</div>
             </div>
           </div>
@@ -1187,6 +1735,8 @@
   function startEdit(id) {
     const e = allEvents.find(ev => ev.id === id);
     if (!e) return;
+    switchAdminTab('events');
+    switchEventsCategory('create');
     document.getElementById('edit-id').value    = e.id;
     document.getElementById('f-title').value    = e.title;
     document.getElementById('f-desc').value     = e.description || '';
@@ -1225,6 +1775,80 @@
     document.getElementById('confirm-msg').textContent =
       `Archive "${title}"? It will be removed from public listings while existing booking records are preserved.`;
     document.getElementById('confirm-modal').classList.add('open');
+  }
+
+  let cancellingEventId = null;
+
+  function openCancelEventModal(id, title) {
+    cancellingEventId = String(id);
+    document.getElementById('cancel-event-name').textContent = title;
+    document.getElementById('event-cancel-reason').value = '';
+    document.getElementById('event-cancel-custom-reason').value = '';
+    toggleCustomCancelReason();
+    document.getElementById('event-cancel-modal').classList.add('open');
+  }
+
+  function closeCancelEventModal() {
+    cancellingEventId = null;
+    document.getElementById('event-cancel-modal').classList.remove('open');
+  }
+
+  function toggleCustomCancelReason() {
+    const custom = document.getElementById('event-cancel-reason').value === 'Other';
+    document.getElementById('custom-cancel-reason-wrap').style.display = custom ? '' : 'none';
+    document.getElementById('event-cancel-custom-reason').required = custom;
+  }
+
+  async function confirmCancelEvent() {
+    const selection = document.getElementById('event-cancel-reason').value;
+    const custom = document.getElementById('event-cancel-custom-reason').value.trim();
+    const reason = selection === 'Other' ? custom : selection;
+    if (!reason) {
+      showToast('Please select a cancellation reason.', 'error');
+      return;
+    }
+    if (!cancellingEventId) return;
+    try {
+      await cancelEventAPI(cancellingEventId, reason);
+      closeCancelEventModal();
+      allEvents = await EventSpot.adminEvents();
+      renderTable();
+      renderCancelledEvents();
+      updateStats();
+      showToast('Event cancelled and booked users notified.', 'success');
+    } catch (error) {
+      showToast(error.message || 'The event could not be cancelled.', 'error');
+    }
+  }
+
+  function renderCancelledEvents() {
+    const cancelled = allEvents.filter(event => event.status === 'cancelled');
+    const registrations = LS.get('registrations') || [];
+    const tbody = document.getElementById('cancelled-events-tbody');
+    if (!cancelled.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">No cancelled events.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = cancelled.map(event => {
+      const count = registrations.filter(registration => String(registration.eventId) === String(event.id)).length;
+      const reason = event.cancellation_reason || 'Reason not recorded';
+      return `<tr>
+        <td><strong>${event.title}</strong></td>
+        <td>${formatDate(event.date)}</td>
+        <td>${event.cancelled_at ? new Date(event.cancelled_at.replace(' ', 'T')).toLocaleString('en-IN') : '-'}</td>
+        <td>${reason}</td>
+        <td><strong>${count}</strong></td>
+        <td><button class="btn btn-outline btn-sm" onclick="showCancelledEventDetails('${String(event.id).replace(/'/g, '')}')">View details</button></td>
+      </tr>`;
+    }).join('');
+  }
+
+  function showCancelledEventDetails(id) {
+    const details = allEvents.find(event => String(event.id) === String(id));
+    if (!details) return;
+    details.reason = details.cancellation_reason || 'Reason not recorded';
+    details.cancelledAt = details.cancelled_at || '';
+    alert(`Event: ${details.title}\nCancelled: ${details.cancelledAt ? new Date(details.cancelledAt.replace(' ', 'T')).toLocaleString('en-IN') : '-'}\nReason: ${details.reason}`);
   }
 
   function closeConfirm() {

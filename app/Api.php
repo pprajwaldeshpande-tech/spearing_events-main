@@ -14,7 +14,23 @@ final class Api
     public static function dispatch(): never
     {
         $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-        if ($method === 'OPTIONS') { header('Access-Control-Allow-Origin: ' . Config::get('APP_URL', '')); header('Access-Control-Allow-Credentials: true'); header('Access-Control-Allow-Headers: Content-Type, X-CSRF-Token, Idempotency-Key, X-Razorpay-Signature'); http_response_code(204); exit; }
+        $origin = trim((string) ($_SERVER['HTTP_ORIGIN'] ?? ''));
+        if ($origin !== '') {
+            $parts = parse_url($origin);
+            if (($parts['scheme'] ?? '') === 'http' && in_array((string) ($parts['host'] ?? ''), ['localhost', '127.0.0.1'], true)) {
+                header('Access-Control-Allow-Origin: ' . $origin);
+                header('Access-Control-Allow-Credentials: true');
+                header('Vary: Origin');
+            }
+        }
+        if ($method === 'OPTIONS') {
+            header('Access-Control-Allow-Origin: ' . ($origin !== '' ? $origin : (string) Config::get('APP_URL', '')));
+            header('Access-Control-Allow-Credentials: true');
+            header('Access-Control-Allow-Headers: Content-Type, X-CSRF-Token, Idempotency-Key, X-Razorpay-Signature');
+            header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
+            http_response_code(204);
+            exit;
+        }
         $path = '/' . trim((string) ($_GET['path'] ?? self::path()), '/');
         if ($path === '/auth/me' && $method === 'GET') self::me();
         if ($path === '/auth/register' && $method === 'POST') self::register();
@@ -36,6 +52,7 @@ final class Api
         if ($path === '/payments/verify' && $method === 'POST') self::verifyPayment();
         if ($path === '/payments/webhook' && $method === 'POST') self::webhook();
         if (preg_match('#^/tickets/([a-f0-9]{64})/qr$#i', $path, $m) && $method === 'GET') self::ticketQr($m[1]);
+        if (preg_match('#^/tickets/([a-f0-9]{64})/details$#i', $path, $m) && $method === 'GET') self::ticketDetails($m[1]);
         if (preg_match('#^/tickets/([a-f0-9]{64})$#i', $path, $m) && $method === 'GET') self::ticket($m[1]);
         if (preg_match('#^/tickets/([a-f0-9]{64})/check-in$#i', $path, $m) && $method === 'POST') self::checkIn($m[1]);
         if ($path === '/refunds' && $method === 'POST') self::refundRequest();
@@ -46,6 +63,12 @@ final class Api
         if (preg_match('#^/wishlists/(\\d+)$#', $path, $m) && $method === 'DELETE') self::removeWishlist((int) $m[1]);
         if ($path === '/notifications' && $method === 'GET') self::notifications();
         if ($path === '/notifications/read-all' && $method === 'POST') self::readNotifications();
+        if ($path === '/support/requests' && $method === 'POST') self::createSupportRequest();
+        if ($path === '/support/requests' && $method === 'GET') self::mySupportRequests();
+        if ($path === '/admin/support/requests' && $method === 'GET') self::adminSupportRequests();
+        if (preg_match('#^/admin/support/requests/([A-Z0-9]{26})$#i', $path, $m) && $method === 'PATCH') self::updateSupportRequest(strtoupper($m[1]));
+        if ($path === '/admin/settings' && $method === 'GET') self::adminSettings();
+        if ($path === '/admin/settings' && $method === 'PUT') self::saveAdminSettings();
         if ($path === '/admin/events' && $method === 'GET') self::adminEvents();
         if ($path === '/admin/payment-qr' && $method === 'POST') self::uploadPaymentQr();
         if ($path === '/admin/payment-settings' && $method === 'POST') self::savePaymentSettings();
@@ -56,6 +79,7 @@ final class Api
         if ($path === '/admin/users' && $method === 'GET') self::adminUsers();
         if (preg_match('#^/admin/users/(\\d+)/(suspend|activate|delete)$#', $path, $m) && $method === 'POST') self::adminUserStatus((int) $m[1], $m[2]);
         if ($path === '/admin/bookings' && $method === 'GET') self::adminBookings();
+        if ($path === '/admin/entry-passes' && $method === 'GET') self::adminEntryPasses();
         if (preg_match('#^/admin/bookings/([A-F0-9]{26})/(confirm|cancel)$#', $path, $m) && $method === 'POST') self::adminBooking($m[1], $m[2]);
         if (preg_match('#^/admin/refunds/([A-F0-9]{26})/(approve|reject)$#', $path, $m) && $method === 'POST') self::adminRefund($m[1], $m[2]);
         if ($path === '/admin/reports/summary' && $method === 'GET') self::summary();
@@ -275,7 +299,16 @@ final class Api
         Support::notify((int) $user['id'], 'payment_submitted', 'Your payment reference was submitted and is awaiting admin verification.', ['bookingId' => $bookingId]);
         Http::json(['bookingId' => $bookingId, 'status' => 'pending_verification']);
     }
-    private static function me(): never { $user = Auth::user(); Http::json(['user' => $user, 'csrfToken' => Auth::csrf()]); }
+    private static function me(): never {
+        $sessionUser = Auth::requireUser();
+        $stmt = Database::connection()->prepare('SELECT id, username, email, full_name, phone, profile_picture, created_at FROM users WHERE id=:id');
+        $stmt->execute(['id' => $sessionUser['id']]);
+        $stored = $stmt->fetch() ?: [];
+        $user = array_merge($sessionUser, $stored);
+        $user['role'] = $sessionUser['role'];
+        $_SESSION['user'] = array_merge($_SESSION['user'], $user);
+        Http::json(['user' => $user, 'csrfToken' => Auth::csrf()]);
+    }
     private static function register(): never
     {
         $input = Http::input();
@@ -370,8 +403,85 @@ final class Api
     }
     private static function profile(): never
     {
-        Auth::verifyCsrf(); $user = Auth::requireUser(); $input = Http::input(); $email = strtolower(trim((string) ($input['email'] ?? ''))); if (!filter_var($email, FILTER_VALIDATE_EMAIL)) Http::error('VALIDATION_FAILED', 'Enter a valid email address.', 422, ['email' => 'Invalid email.']);
-        try { Database::connection()->prepare('UPDATE users SET email = :email WHERE id = :id')->execute(['email' => $email, 'id' => $user['id']]); } catch (\PDOException) { Http::error('ALREADY_EXISTS', 'This email address is already registered.', 409); } $_SESSION['user']['email'] = $email; Http::json(['user' => Auth::user()]);
+        Auth::verifyCsrf();
+        $user = Auth::requireUser();
+        $input = Http::input();
+        $email = strtolower(trim((string) ($input['email'] ?? '')));
+        $fullName = trim((string) ($input['fullName'] ?? $input['name'] ?? ''));
+        $username = strtolower(trim((string) ($input['username'] ?? '')));
+        $phone = trim((string) ($input['phone'] ?? ''));
+        $profilePicture = trim((string) ($input['profilePicture'] ?? ''));
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) Http::error('VALIDATION_FAILED', 'Enter a valid email address.', 422, ['email' => 'Invalid email.']);
+        if ($username === '' || !preg_match('/^[a-z0-9._-]{3,50}$/i', $username)) Http::error('VALIDATION_FAILED', 'Enter a valid username.', 422, ['username' => '3-50 letters, numbers, dots, underscores or hyphens.']);
+        if (strlen($phone) > 30) Http::error('VALIDATION_FAILED', 'Phone number is too long.', 422);
+        if (strlen($profilePicture) > 255) Http::error('VALIDATION_FAILED', 'Profile picture URL is too long.', 422);
+        try {
+            Database::connection()->prepare(
+                'UPDATE users SET email=:email, full_name=:full_name, username=:username, phone=:phone, profile_picture=:picture WHERE id=:id'
+            )->execute([
+                'email' => $email,
+                'full_name' => substr($fullName, 0, 120),
+                'username' => $username,
+                'phone' => $phone !== '' ? $phone : null,
+                'picture' => $profilePicture !== '' ? $profilePicture : null,
+                'id' => $user['id'],
+            ]);
+        } catch (\PDOException) {
+            Http::error('ALREADY_EXISTS', 'This email or username is already registered.', 409);
+        }
+        $_SESSION['user']['email'] = $email;
+        $_SESSION['user']['full_name'] = $fullName;
+        $_SESSION['user']['username'] = $username;
+        $_SESSION['user']['phone'] = $phone !== '' ? $phone : null;
+        $_SESSION['user']['profile_picture'] = $profilePicture !== '' ? $profilePicture : null;
+        $stmt = Database::connection()->prepare('SELECT id, username, email, full_name, phone, profile_picture, created_at FROM users WHERE id=:id');
+        $stmt->execute(['id' => $user['id']]);
+        $storedUser = $stmt->fetch() ?: Auth::user();
+        $_SESSION['user'] = array_merge(Auth::user(), $storedUser);
+        Http::json(['user' => Auth::user()]);
+    }
+    private static function adminSettings(): never
+    {
+        Auth::verifyCsrf();
+        $admin = Auth::requireRole('admin');
+        $stmt = Database::connection()->prepare('SELECT setting_key, setting_value FROM admin_settings WHERE user_id=:id');
+        $stmt->execute(['id' => $admin['id']]);
+        $settings = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $settings[(string) $row['setting_key']] = json_decode((string) $row['setting_value'], true);
+        }
+        Http::json([
+            'profile' => [
+                'fullName' => (string) ($admin['full_name'] ?? ''),
+                'email' => (string) ($admin['email'] ?? ''),
+                'username' => (string) ($admin['username'] ?? ''),
+                'phone' => (string) ($admin['phone'] ?? ''),
+                'profilePicture' => (string) ($admin['profile_picture'] ?? ''),
+            ],
+            'settings' => $settings,
+        ]);
+    }
+    private static function saveAdminSettings(): never
+    {
+        Auth::verifyCsrf();
+        $admin = Auth::requireRole('admin');
+        $input = Http::input();
+        $category = strtolower(trim((string) ($input['category'] ?? '')));
+        $values = $input['values'] ?? null;
+        $allowed = ['notifications', 'payment', 'booking', 'qr', 'appearance', 'security'];
+        if (!in_array($category, $allowed, true) || !is_array($values)) {
+            Http::error('VALIDATION_FAILED', 'Invalid settings category.', 422);
+        }
+        if (strlen(json_encode($values)) > 16384) Http::error('VALIDATION_FAILED', 'Settings are too large.', 422);
+        $pdo = Database::connection();
+        $stmt = $pdo->prepare(
+            'INSERT INTO admin_settings (user_id, setting_key, setting_value)
+             VALUES (:user, :key, :value)
+             ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)'
+        );
+        $stmt->execute(['user' => $admin['id'], 'key' => $category, 'value' => json_encode($values, JSON_UNESCAPED_SLASHES)]);
+        Support::audit($admin['id'], 'admin_settings.updated', 'admin_settings', $category);
+        Http::json(['category' => $category, 'values' => $values]);
     }
     private static function password(): never
     {
@@ -386,7 +496,14 @@ final class Api
     private static function event(int $id): never { $pdo = Database::connection(); $stmt = $pdo->prepare("SELECT e.*, i.path AS image FROM events e LEFT JOIN event_images i ON i.event_id=e.id AND i.is_primary=1 WHERE e.id=:id AND e.status='published'"); $stmt->execute(['id' => $id]); $event = $stmt->fetch(); if (!$event) Http::error('NOT_FOUND', 'Event not found.', 404); $images = $pdo->prepare('SELECT path FROM event_images WHERE event_id=:id ORDER BY is_primary DESC,id'); $images->execute(['id' => $id]); $row = Support::eventRow($event); $row['images'] = array_column($images->fetchAll(), 'path'); Http::json(['event' => $row]); }
     private static function createBooking(): never
     {
-        Auth::verifyCsrf(); $user = Auth::requireUser(); $input = Http::input(); $eventId = (int) ($input['eventId'] ?? 0); $quantity = max(1, min(10, (int) ($input['quantity'] ?? 1))); $key = $_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? ''; if (!preg_match('/^[a-f0-9-]{36}$/i', $key)) Http::error('IDEMPOTENCY_REQUIRED', 'Provide a valid idempotency key.', 400); $pdo = Database::connection();
+        Auth::verifyCsrf(); $user = Auth::requireUser(); $input = Http::input(); $eventId = (int) ($input['eventId'] ?? 0);
+        $ticketLimit = 10;
+        $setting = Database::connection()->query("SELECT setting_value FROM admin_settings WHERE setting_key='booking' ORDER BY updated_at DESC LIMIT 1")->fetchColumn();
+        if (is_string($setting)) {
+            $bookingSettings = json_decode($setting, true);
+            if (is_array($bookingSettings) && (int) ($bookingSettings['ticketLimit'] ?? 0) > 0) $ticketLimit = min(10, (int) $bookingSettings['ticketLimit']);
+        }
+        $quantity = max(1, min($ticketLimit, (int) ($input['quantity'] ?? 1))); $key = $_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? ''; if (!preg_match('/^[a-f0-9-]{36}$/i', $key)) Http::error('IDEMPOTENCY_REQUIRED', 'Provide a valid idempotency key.', 400); $pdo = Database::connection();
         $existing = $pdo->prepare('SELECT id, status FROM bookings WHERE user_id=:user AND idempotency_key=:key'); $existing->execute(['user' => $user['id'], 'key' => $key]); if ($row = $existing->fetch()) Http::json(['bookingId' => $row['id'], 'status' => $row['status'], 'reused' => true]);
         $pdo->beginTransaction(); try { $stmt = $pdo->prepare("SELECT * FROM events WHERE id=:id AND status='published' AND starts_at > NOW() FOR UPDATE"); $stmt->execute(['id' => $eventId]); $event = $stmt->fetch(); if (!$event) { $pdo->rollBack(); Http::error('EVENT_UNAVAILABLE', 'This event is no longer available.', 409); }         $paymentSettings = Database::connection()->query('SELECT qr_image_path,upi_id FROM payment_settings WHERE id=1')->fetch() ?: [];
         $configuredUpi = trim((string) ($paymentSettings['upi_id'] ?? '')) ?: 'pprajwaldeshpande-1@okicici';
@@ -417,13 +534,32 @@ final class Api
     {
         $pdo = Database::connection(); $pdo->beginTransaction(); try { $stmt = $pdo->prepare('SELECT b.*, p.id AS payment_row FROM bookings b JOIN payments p ON p.booking_id=b.id WHERE b.id=:booking AND p.provider_order_id=:order FOR UPDATE'); $stmt->execute(['booking' => $bookingId, 'order' => $orderId]); $row = $stmt->fetch(); if (!$row) { $pdo->rollBack(); return; } if ($row['status'] === 'confirmed') { $pdo->rollBack(); return; } $pdo->prepare("UPDATE payments SET provider_payment_id=:payment,status='captured',provider_payload=:payload WHERE id=:id")->execute(['payment' => $paymentId, 'payload' => json_encode($payload), 'id' => $row['payment_row']]); self::confirmBooking($pdo, $bookingId); $pdo->commit(); Support::notify((int) $row['user_id'], 'payment_success', 'Your payment was verified and tickets are available.', ['bookingId' => $bookingId]); } catch (\Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
     }
-    private static function confirmBooking(PDO $pdo, string $bookingId): void { $pdo->prepare("UPDATE bookings SET status='confirmed', expires_at=NULL WHERE id=:id")->execute(['id' => $bookingId]); $stmt = $pdo->prepare('SELECT quantity FROM bookings WHERE id=:id'); $stmt->execute(['id' => $bookingId]); for ($i = 0; $i < (int) $stmt->fetchColumn(); $i++) $pdo->prepare('INSERT INTO tickets (id,booking_id,validation_token) VALUES (:id,:booking,:token)')->execute(['id' => Support::id(), 'booking' => $bookingId, 'token' => Support::token()]); }
+    private static function confirmBooking(PDO $pdo, string $bookingId): void
+    {
+        $pdo->prepare("UPDATE bookings SET status='confirmed', expires_at=NULL WHERE id=:id")->execute(['id' => $bookingId]);
+        $stmt = $pdo->prepare('SELECT b.quantity,b.user_id,e.title FROM bookings b JOIN events e ON e.id=b.event_id WHERE b.id=:id');
+        $stmt->execute(['id' => $bookingId]);
+        $booking = $stmt->fetch();
+        for ($i = 0; $i < (int) $booking['quantity']; $i++) {
+            $pdo->prepare('INSERT INTO tickets (id,booking_id,validation_token) VALUES (:id,:booking,:token)')
+                ->execute(['id' => Support::id(), 'booking' => $bookingId, 'token' => Support::token()]);
+        }
+        if ($booking) Support::notify((int) $booking['user_id'], 'entry_pass_generated', "Your QR entry pass for {$booking['title']} has been generated.", ['bookingId' => $bookingId]);
+    }
     private static function myBookings(): never { $user = Auth::requireUser(); self::bookingsFor('b.user_id=:id', ['id' => $user['id']]); }
     private static function booking(string $id): never { $user = Auth::requireUser(); self::bookingsFor('b.id=:id AND (b.user_id=:user OR :role IN (\'admin\',\'staff\'))', ['id' => $id, 'user' => $user['id'], 'role' => $user['role']], true); }
     private static function bookingsFor(string $where, array $params, bool $one = false): never
     {
-        $sql = 'SELECT b.*, u.username, e.title, e.starts_at, e.venue, p.provider_payment_id FROM bookings b JOIN users u ON u.id=b.user_id JOIN events e ON e.id=b.event_id LEFT JOIN payments p ON p.booking_id=b.id WHERE ' . $where . ' ORDER BY b.created_at DESC';
         $pdo = Database::connection();
+        $hasCancellationReason = (bool) $pdo->query("SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='events' AND COLUMN_NAME='cancellation_reason'")->fetchColumn();
+        $hasCancelledAt = (bool) $pdo->query("SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='events' AND COLUMN_NAME='cancelled_at'")->fetchColumn();
+        $cancellationSelect = ($hasCancellationReason ? 'e.cancellation_reason' : "NULL AS cancellation_reason")
+            . ','
+            . ($hasCancelledAt ? 'e.cancelled_at' : "NULL AS cancelled_at");
+        $sql = 'SELECT b.*, u.username, e.title, e.description AS event_description, e.starts_at, e.ends_at, e.venue, e.venue_details, e.status AS event_status, '
+            . '(SELECT i.path FROM event_images i WHERE i.event_id=e.id AND i.is_primary=1 ORDER BY i.id LIMIT 1) AS event_image, '
+            . $cancellationSelect
+            . ' , p.provider_payment_id FROM bookings b JOIN users u ON u.id=b.user_id JOIN events e ON e.id=b.event_id LEFT JOIN payments p ON p.booking_id=b.id WHERE ' . $where . ' ORDER BY b.created_at DESC';
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         $rows = $stmt->fetchAll();
@@ -443,7 +579,7 @@ final class Api
                     }
                 }
             }
-            $tickets = $pdo->prepare('SELECT id, validation_token, status FROM tickets WHERE booking_id=:id ORDER BY id');
+            $tickets = $pdo->prepare('SELECT id, validation_token, status, checked_in_at FROM tickets WHERE booking_id=:id ORDER BY id');
             $tickets->execute(['id' => $row['id']]);
             $row['tickets'] = $tickets->fetchAll();
         }
@@ -457,15 +593,128 @@ final class Api
     private static function ticketQr(string $token): never
     {
         self::authorisedTicket($token);
-        $result = (new SvgWriter())->write(new QrCode(data: $token, size: 300, margin: 10));
+        $baseUrl = self::publicAppUrl((string) ($_GET['publicBase'] ?? ''));
+        $scanUrl = $baseUrl . '/ticket.php?token=' . rawurlencode($token);
+        $result = (new SvgWriter())->write(new QrCode(data: $scanUrl, size: 420, margin: 20));
         header('Content-Type: image/svg+xml');
         header('Cache-Control: private, no-store');
         header('Content-Length: ' . strlen($result->getString()));
         echo $result->getString();
         exit;
     }
+    private static function publicAppUrl(string $requestBase = ''): string
+    {
+        $candidates = [
+            trim((string) Config::get('PUBLIC_APP_URL', '')),
+            $requestBase,
+            trim((string) Config::get('APP_URL', '')),
+        ];
+        foreach ($candidates as $url) {
+            $url = rtrim(trim($url), '/');
+            if ($url !== '' && filter_var($url, FILTER_VALIDATE_URL)) {
+                $host = (string) parse_url($url, PHP_URL_HOST);
+                $isIp = filter_var($host, FILTER_VALIDATE_IP) !== false;
+                $isPublicIp = $isIp && filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false;
+                if (!in_array(strtolower($host), ['localhost', '127.0.0.1', '::1'], true) && (!$isIp || $isPublicIp)) {
+                    return $url;
+                }
+                if (strtolower((string) Config::get('APP_ENV', 'development')) !== 'production') {
+                    if (in_array(strtolower($host), ['localhost', '127.0.0.1', '::1'], true)) {
+                        $lanAddresses = gethostbynamel(gethostname()) ?: [gethostbyname(gethostname())];
+                        $lanIp = '';
+                        foreach ($lanAddresses as $address) {
+                            if (!filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)
+                                && filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                                if (!str_starts_with($address, '169.254.') && !str_starts_with($address, '127.')) {
+                                    $lanIp = $address;
+                                    break;
+                                }
+                            }
+                        }
+                        if ($lanIp !== '') {
+                            $parts = parse_url($url);
+                            $parts['host'] = $lanIp;
+                            $scheme = (string) ($parts['scheme'] ?? 'http');
+                            $port = isset($parts['port']) ? ':' . $parts['port'] : '';
+                            $path = (string) ($parts['path'] ?? '');
+                            return rtrim($scheme . '://' . $lanIp . $port . $path, '/');
+                        }
+                    }
+                    return $url;
+                }
+            }
+        }
+        throw new \RuntimeException('Set PUBLIC_APP_URL to the publicly accessible HTTPS URL of the public site before generating entry QR codes.');
+    }
+    private static function ticketDetails(string $token): never
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT t.validation_token,t.status AS ticket_status,b.id AS booking_id,b.status AS booking_status,b.quantity,u.full_name,u.username,
+                    e.id AS event_id,e.title,e.description,e.category,e.venue,e.venue_details,e.starts_at,e.ends_at,e.ticket_price,
+                    i.path AS image
+             FROM tickets t
+             JOIN bookings b ON b.id=t.booking_id
+             JOIN users u ON u.id=b.user_id
+             JOIN events e ON e.id=b.event_id
+             LEFT JOIN event_images i ON i.event_id=e.id AND i.is_primary=1
+             WHERE t.validation_token=:token'
+        );
+        $stmt->execute(['token' => $token]);
+        $ticket = $stmt->fetch();
+        if (!$ticket || $ticket['booking_status'] !== 'confirmed' || in_array($ticket['ticket_status'], ['cancelled', 'refunded'], true)) {
+            Http::error('NOT_FOUND', 'Ticket not found or no longer valid.', 404);
+        }
+        Http::json([
+            'ticket' => [
+                'bookingId' => $ticket['booking_id'],
+                'quantity' => (int) $ticket['quantity'],
+                'bookingStatus' => $ticket['booking_status'],
+                'passStatus' => $ticket['ticket_status'],
+                'userName' => $ticket['full_name'] ?: $ticket['username'],
+            ],
+            'event' => [
+                'id' => (int) $ticket['event_id'],
+                'title' => $ticket['title'],
+                'description' => $ticket['description'],
+                'category' => $ticket['category'],
+                'venue' => $ticket['venue'],
+                'venueDetails' => $ticket['venue_details'],
+                'startsAt' => $ticket['starts_at'],
+                'endsAt' => $ticket['ends_at'],
+                'price' => (float) $ticket['ticket_price'],
+                'image' => $ticket['image'],
+            ],
+        ]);
+    }
     private static function authorisedTicket(string $token): array { $user = Auth::requireUser(); $stmt = Database::connection()->prepare('SELECT t.*, b.user_id, b.status AS booking_status, e.title, e.starts_at, e.venue FROM tickets t JOIN bookings b ON b.id=t.booking_id JOIN events e ON e.id=b.event_id WHERE t.validation_token=:token'); $stmt->execute(['token' => $token]); $ticket = $stmt->fetch(); if (!$ticket || $ticket['booking_status'] !== 'confirmed' || $ticket['status'] === 'cancelled' || $ticket['status'] === 'refunded' || ((int) $ticket['user_id'] !== $user['id'] && !in_array($user['role'], ['admin','staff'], true))) Http::error('NOT_FOUND', 'Ticket not found or no longer valid.', 404); return $ticket; }
-    private static function checkIn(string $token): never { Auth::verifyCsrf(); $staff = Auth::requireRole('admin', 'staff'); $pdo = Database::connection(); $stmt = $pdo->prepare("UPDATE tickets t JOIN bookings b ON b.id=t.booking_id JOIN events e ON e.id=b.event_id SET t.status='checked_in',t.checked_in_at=NOW(),t.checked_in_by=:staff WHERE t.validation_token=:token AND t.status='active' AND b.status='confirmed' AND e.status='published' AND DATE(e.starts_at)=CURDATE()"); $stmt->execute(['staff' => $staff['id'], 'token' => $token]); if ($stmt->rowCount() !== 1) Http::error('TICKET_NOT_ELIGIBLE', 'Ticket is invalid, already checked in, or not eligible today.', 409); Support::audit($staff['id'], 'ticket.checked_in', 'ticket', $token); Http::json(['checkedIn' => true]); }
+    private static function checkIn(string $token): never
+    {
+        Auth::verifyCsrf();
+        $staff = Auth::requireRole('admin', 'staff');
+        $pdo = Database::connection();
+        $pdo->beginTransaction();
+        $lookup = $pdo->prepare("SELECT t.status,t.checked_in_at FROM tickets t JOIN bookings b ON b.id=t.booking_id JOIN events e ON e.id=b.event_id WHERE t.validation_token=:token AND b.status='confirmed' AND e.status='published'");
+        $lookup->execute(['token' => $token]);
+        $ticket = $lookup->fetch();
+        if (!$ticket) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            Http::error('TICKET_NOT_ELIGIBLE', 'Ticket is invalid or cancelled.', 409);
+        }
+        if ($pdo->inTransaction() && $ticket['status'] === 'checked_in') $pdo->rollBack();
+        if ($ticket['status'] === 'checked_in') Http::error('ENTRY_ALREADY_COMPLETED', 'ENTRY ALREADY COMPLETED! This QR code has already been scanned.', 409, ['checkedInAt' => $ticket['checked_in_at']]);
+
+        $update = $pdo->prepare("UPDATE tickets t JOIN bookings b ON b.id=t.booking_id JOIN events e ON e.id=b.event_id SET t.status='checked_in',t.checked_in_at=NOW(),t.checked_in_by=:staff WHERE t.validation_token=:token AND t.status='active' AND b.status='confirmed' AND e.status='published'");
+        $update->execute(['staff' => $staff['id'], 'token' => $token]);
+        if ($update->rowCount() !== 1) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $retry = $pdo->prepare('SELECT checked_in_at FROM tickets WHERE validation_token=:token AND status=\'checked_in\'');
+            $retry->execute(['token' => $token]);
+            Http::error('ENTRY_ALREADY_COMPLETED', 'ENTRY ALREADY COMPLETED! This QR code has already been scanned.', 409, ['checkedInAt' => $retry->fetchColumn()]);
+        }
+        $pdo->commit();
+        Support::audit($staff['id'], 'ticket.checked_in', 'ticket', $token);
+        Http::json(['checkedIn' => true]);
+    }
     private static function refundRequest(): never { Auth::verifyCsrf(); $user = Auth::requireUser(); $input = Http::input(); $bookingId = strtoupper((string) ($input['bookingId'] ?? '')); $reason = trim((string) ($input['reason'] ?? '')); if (strlen($reason) < 5) Http::error('VALIDATION_FAILED', 'Provide a refund reason.', 422, ['reason' => 'At least 5 characters.']); $pdo = Database::connection(); $stmt = $pdo->prepare("SELECT b.*,p.id AS payment_id,e.starts_at,e.cancellation_cutoff_hours FROM bookings b JOIN payments p ON p.booking_id=b.id JOIN events e ON e.id=b.event_id WHERE b.id=:id AND b.user_id=:user AND b.status='confirmed'"); $stmt->execute(['id' => $bookingId, 'user' => $user['id']]); $booking = $stmt->fetch(); if (!$booking || strtotime($booking['starts_at']) <= time() + ((int) $booking['cancellation_cutoff_hours'] * 3600)) Http::error('REFUND_INELIGIBLE', 'This booking is not eligible for a refund.', 409); $id = Support::id(); $pdo->prepare("INSERT INTO refunds (id,booking_id,payment_id,requested_by,amount,reason) VALUES (:id,:booking,:payment,:user,:amount,:reason)")->execute(['id' => $id, 'booking' => $bookingId, 'payment' => $booking['payment_id'], 'user' => $user['id'], 'amount' => $booking['total_amount'], 'reason' => $reason]); $pdo->prepare("UPDATE bookings SET status='refund_pending' WHERE id=:id")->execute(['id' => $bookingId]); Http::json(['refundId' => $id], 201); }
     private static function reviews(): never
     {
@@ -502,6 +751,50 @@ final class Api
     private static function review(): never { Auth::verifyCsrf(); $user = Auth::requireUser(); $input = Http::input(); $eventId = (int) ($input['eventId'] ?? 0); $rating = (int) ($input['rating'] ?? 0); $body = trim(strip_tags((string) ($input['body'] ?? ''))); if ($rating < 1 || $rating > 5 || strlen($body) < 3) Http::error('VALIDATION_FAILED', 'Provide a rating and review.', 422); $eligible = Database::connection()->prepare("SELECT 1 FROM bookings WHERE user_id=:user AND event_id=:event AND status='confirmed' LIMIT 1"); $eligible->execute(['user' => $user['id'], 'event' => $eventId]); if (!$eligible->fetchColumn()) Http::error('REVIEW_INELIGIBLE', 'Only confirmed attendees can review an event.', 403); Database::connection()->prepare('INSERT INTO reviews (user_id,event_id,rating,body) VALUES (:user,:event,:rating,:body) ON DUPLICATE KEY UPDATE rating=VALUES(rating),body=VALUES(body),status=\'published\'')->execute(['user' => $user['id'], 'event' => $eventId, 'rating' => $rating, 'body' => $body]); Http::json(); }
     private static function notifications(): never { $user = Auth::requireUser(); $stmt = Database::connection()->prepare('SELECT * FROM notifications WHERE user_id=:id ORDER BY created_at DESC LIMIT 100'); $stmt->execute(['id' => $user['id']]); Http::json(['notifications' => $stmt->fetchAll()]); }
     private static function readNotifications(): never { Auth::verifyCsrf(); $user = Auth::requireUser(); Database::connection()->prepare('UPDATE notifications SET read_at=COALESCE(read_at,NOW()) WHERE user_id=:id')->execute(['id' => $user['id']]); Http::json(); }
+    private static function createSupportRequest(): never
+    {
+        Auth::verifyCsrf();
+        $user = Auth::requireUser();
+        $input = Http::input();
+        $subject = trim(strip_tags((string) ($input['subject'] ?? '')));
+        $category = trim(strip_tags((string) ($input['category'] ?? 'general')));
+        $message = trim(strip_tags((string) ($input['message'] ?? '')));
+        if (strlen($subject) < 3 || strlen($subject) > 180) Http::error('VALIDATION_FAILED', 'Enter a subject between 3 and 180 characters.', 422);
+        if (strlen($message) < 10 || strlen($message) > 3000) Http::error('VALIDATION_FAILED', 'Enter a support message between 10 and 3000 characters.', 422);
+        $id = Support::id();
+        Database::connection()->prepare(
+            'INSERT INTO support_requests (id,user_id,subject,category,message) VALUES (:id,:user,:subject,:category,:message)'
+        )->execute(['id' => $id, 'user' => $user['id'], 'subject' => $subject, 'category' => substr($category, 0, 50), 'message' => $message]);
+        Support::notify((int) $user['id'], 'support_submitted', 'Your support request has been submitted.', ['supportId' => $id]);
+        Http::json(['requestId' => $id], 201);
+    }
+    private static function mySupportRequests(): never
+    {
+        $user = Auth::requireUser();
+        $stmt = Database::connection()->prepare('SELECT id,subject,category,message,status,admin_response,created_at,updated_at FROM support_requests WHERE user_id=:user ORDER BY created_at DESC');
+        $stmt->execute(['user' => $user['id']]);
+        Http::json(['requests' => $stmt->fetchAll()]);
+    }
+    private static function adminSupportRequests(): never
+    {
+        Auth::requireRole('admin');
+        $stmt = Database::connection()->query(
+            'SELECT s.*,u.username,u.full_name,u.email FROM support_requests s JOIN users u ON u.id=s.user_id ORDER BY s.created_at DESC'
+        );
+        Http::json(['requests' => $stmt->fetchAll()]);
+    }
+    private static function updateSupportRequest(string $id): never
+    {
+        Auth::verifyCsrf();
+        Auth::requireRole('admin');
+        $input = Http::input();
+        $status = (string) ($input['status'] ?? '');
+        if (!in_array($status, ['open','in_progress','resolved','closed'], true)) Http::error('VALIDATION_FAILED', 'Invalid support status.', 422);
+        $response = trim(strip_tags((string) ($input['response'] ?? $input['adminResponse'] ?? '')));
+        Database::connection()->prepare('UPDATE support_requests SET status=:status,admin_response=:response WHERE id=:id')
+            ->execute(['status' => $status, 'response' => $response !== '' ? substr($response, 0, 3000) : null, 'id' => $id]);
+        Http::json();
+    }
     private static function saveEvent(?int $id = null): never
     {
         Auth::verifyCsrf();
@@ -547,7 +840,41 @@ final class Api
         Support::audit($admin['id'], $isUpdate ? 'event.updated' : 'event.created', 'event', (string) $id);
         Http::json(['eventId' => $id]);
     }
-    private static function eventStatus(int $id, string $action): never { Auth::verifyCsrf(); $admin = Auth::requireRole('admin'); $status = $action === 'publish' ? 'published' : ($action === 'cancel' ? 'cancelled' : 'archived'); Database::connection()->prepare('UPDATE events SET status=:status WHERE id=:id')->execute(['status' => $status, 'id' => $id]); Support::audit($admin['id'], "event.$action", 'event', (string) $id); Http::json(); }
+    private static function eventStatus(int $id, string $action): never
+    {
+        Auth::verifyCsrf();
+        $admin = Auth::requireRole('admin');
+        $pdo = Database::connection();
+        if ($action === 'cancel') {
+            $input = Http::input();
+            $reason = trim(strip_tags((string) ($input['reason'] ?? '')));
+            if ($reason === '') Http::error('CANCELLATION_REASON_REQUIRED', 'Select or enter a cancellation reason.', 422);
+            if (strlen($reason) > 1000) Http::error('VALIDATION_FAILED', 'Cancellation reason is too long.', 422);
+            $pdo->beginTransaction();
+            $event = $pdo->prepare('SELECT title FROM events WHERE id=:id FOR UPDATE');
+            $event->execute(['id' => $id]);
+            $row = $event->fetch();
+            if (!$row) { $pdo->rollBack(); Http::error('NOT_FOUND', 'Event not found.', 404); }
+            $pdo->prepare("UPDATE events SET status='cancelled',cancellation_reason=:reason,cancelled_at=NOW() WHERE id=:id")->execute(['reason' => $reason, 'id' => $id]);
+            $pdo->prepare("UPDATE tickets t JOIN bookings b ON b.id=t.booking_id SET t.status='cancelled' WHERE b.event_id=:id AND t.status='active'")->execute(['id' => $id]);
+            $bookings = $pdo->prepare('SELECT DISTINCT user_id FROM bookings WHERE event_id=:id');
+            $bookings->execute(['id' => $id]);
+            $userIds = array_column($bookings->fetchAll(), 'user_id');
+            foreach ($userIds as $userId) {
+                Support::notify((int) $userId, 'event_cancelled', 'This event has been cancelled by the administrator.', [
+                    'eventId' => $id,
+                    'eventName' => $row['title'],
+                    'reason' => $reason,
+                ]);
+            }
+            $pdo->commit();
+        } else {
+            $status = $action === 'publish' ? 'published' : 'archived';
+            $pdo->prepare('UPDATE events SET status=:status WHERE id=:id')->execute(['status' => $status, 'id' => $id]);
+        }
+        Support::audit($admin['id'], "event.$action", 'event', (string) $id, $action === 'cancel' ? ['reason' => $reason] : []);
+        Http::json(['status' => $action === 'cancel' ? 'cancelled' : ($action === 'publish' ? 'published' : 'archived')]);
+    }
     private static function uploadImage(int $eventId): never
     {
         Auth::verifyCsrf(); Auth::requireRole('admin');
@@ -605,7 +932,13 @@ final class Api
     private static function adminUsers(): never
     {
         Auth::requireRole('admin');
-        $stmt = Database::connection()->query("SELECT u.id,u.username,u.full_name,u.email,u.role,u.status,u.created_at,COUNT(b.id) AS booking_count FROM users u LEFT JOIN bookings b ON b.user_id=u.id WHERE u.role='user' GROUP BY u.id ORDER BY u.created_at DESC");
+        $stmt = Database::connection()->query("
+            SELECT u.id,u.username,u.full_name,u.email,u.role,u.status,u.created_at,
+                   COALESCE((SELECT COUNT(*) FROM bookings b WHERE b.user_id=u.id), 0) AS booking_count
+            FROM users u
+            WHERE u.role='user'
+            ORDER BY u.created_at DESC
+        ");
         Http::json(['users' => $stmt->fetchAll()]);
     }
     private static function adminUserStatus(int $id, string $action): never
@@ -635,6 +968,58 @@ final class Api
         Http::json(['status' => $status]);
     }
     private static function adminBookings(): never { Auth::requireRole('admin'); self::bookingsFor('1=1', []); }
+    private static function adminEntryPasses(): never
+    {
+        Auth::requireRole('admin');
+        $pdo = Database::connection();
+        $confirmedBookings = $pdo->query("SELECT id,quantity FROM bookings WHERE status='confirmed'")->fetchAll();
+        foreach ($confirmedBookings as $booking) {
+            $ticketCount = $pdo->prepare('SELECT COUNT(*) FROM tickets WHERE booking_id=:id');
+            $ticketCount->execute(['id' => $booking['id']]);
+            $missing = max(0, (int) $booking['quantity'] - (int) $ticketCount->fetchColumn());
+            $insert = $pdo->prepare('INSERT INTO tickets (id,booking_id,validation_token,status) VALUES (:id,:booking,:token,\'active\')');
+            for ($index = 0; $index < $missing; $index++) {
+                $insert->execute(['id' => Support::id(), 'booking' => $booking['id'], 'token' => Support::token()]);
+            }
+        }
+        $passes = $pdo->query(
+            "SELECT t.id,t.validation_token,t.status AS ticket_status,t.checked_in_at,
+                    b.id AS booking_id,b.status AS booking_status,b.quantity,b.created_at AS booked_at,
+                    u.username,u.full_name,u.email,e.id AS event_id,e.title,e.starts_at,e.venue
+             FROM tickets t
+             JOIN bookings b ON b.id=t.booking_id
+             JOIN users u ON u.id=b.user_id
+             JOIN events e ON e.id=b.event_id
+             WHERE b.status='confirmed'
+             ORDER BY b.created_at DESC,t.id DESC"
+        )->fetchAll();
+        Http::json([
+            'passes' => array_map(static fn(array $pass): array => [
+                'id' => $pass['id'],
+                'token' => $pass['validation_token'],
+                'bookingId' => $pass['booking_id'],
+                'eventId' => (int) $pass['event_id'],
+                'eventTitle' => $pass['title'],
+                'eventDate' => $pass['starts_at'],
+                'venue' => $pass['venue'],
+                'userName' => $pass['full_name'] ?: $pass['username'],
+                'email' => $pass['email'],
+                'username' => $pass['username'],
+                'quantity' => (int) $pass['quantity'],
+                'bookingStatus' => $pass['booking_status'],
+                'passStatus' => $pass['ticket_status'],
+                'checkedInAt' => $pass['checked_in_at'],
+                'bookedAt' => $pass['booked_at'],
+            ], $passes),
+            'stats' => [
+                'generated' => count($passes),
+                'bookings' => (int) $pdo->query('SELECT COUNT(*) FROM bookings')->fetchColumn(),
+                'checkedIn' => count(array_filter($passes, fn(array $pass) => $pass['ticket_status'] === 'checked_in')),
+                'pending' => count(array_filter($passes, fn(array $pass) => $pass['booking_status'] === 'confirmed' && $pass['ticket_status'] === 'active')),
+                'cancelled' => count(array_filter($passes, fn(array $pass) => in_array($pass['booking_status'], ['cancelled', 'cancelled_by_admin'], true))),
+            ],
+        ]);
+    }
     private static function adminBooking(string $id, string $action): never
     {
         Auth::verifyCsrf(); $admin = Auth::requireRole('admin'); $pdo = Database::connection(); $pdo->beginTransaction();
@@ -651,7 +1036,11 @@ final class Api
                 self::confirmBooking($pdo, $id);
             } else {
                 if ($booking['status'] !== 'pending_payment') { $pdo->rollBack(); Http::error('BOOKING_UNAVAILABLE', 'Only a pending booking can be cancelled here. Confirmed bookings must use the refund process.', 409); }
-                $pdo->prepare("UPDATE bookings SET status='cancelled' WHERE id=:id")->execute(['id' => $id]);
+                $input = Http::input();
+                $reason = trim(strip_tags((string) ($input['reason'] ?? '')));
+                if ($reason === '') { $pdo->rollBack(); Http::error('REJECTION_REASON_REQUIRED', 'Select or enter a rejection reason.', 422); }
+                if (strlen($reason) > 1000) { $pdo->rollBack(); Http::error('VALIDATION_FAILED', 'Rejection reason is too long.', 422); }
+                $pdo->prepare("UPDATE bookings SET status='cancelled', rejection_reason=:reason, rejected_at=NOW() WHERE id=:id")->execute(['reason' => $reason, 'id' => $id]);
                 $pdo->prepare("UPDATE events SET reserved_quantity=GREATEST(0,reserved_quantity-:quantity) WHERE id=:id")->execute(['quantity' => $booking['quantity'], 'id' => $booking['event_id']]);
             }
             $pdo->commit();
@@ -660,7 +1049,9 @@ final class Api
             throw $error;
         }
         Support::audit($admin['id'], "booking.$action", 'booking', $id);
-        Support::notify((int) $booking['user_id'], $action === 'confirm' ? 'payment_verified' : 'booking_cancelled', $action === 'confirm' ? 'Your payment was verified and your booking is confirmed.' : 'Your booking was cancelled by an admin.', ['bookingId' => $id]);
+        $input = Http::input();
+        $rejectionReason = trim(strip_tags((string) ($input['reason'] ?? '')));
+        Support::notify((int) $booking['user_id'], $action === 'confirm' ? 'payment_verified' : 'booking_cancelled', $action === 'confirm' ? 'Your payment was verified and your booking is confirmed.' : 'Your booking was rejected by an administrator.', ['bookingId' => $id, 'reason' => $rejectionReason]);
         Http::json();
     }
     private static function adminRefund(string $id, string $action): never { Auth::verifyCsrf(); Auth::requireRole('admin'); $pdo=Database::connection(); $stmt=$pdo->prepare('SELECT r.*,p.provider_payment_id FROM refunds r JOIN payments p ON p.id=r.payment_id WHERE r.id=:id FOR UPDATE'); $pdo->beginTransaction(); $stmt->execute(['id'=>$id]); $refund=$stmt->fetch(); if(!$refund || $refund['status']!=='requested'){ $pdo->rollBack(); Http::error('REFUND_UNAVAILABLE','Refund cannot be processed.',409); } if($action==='reject'){ $pdo->prepare("UPDATE refunds SET status='rejected' WHERE id=:id")->execute(['id'=>$id]); $pdo->prepare("UPDATE bookings SET status='confirmed' WHERE id=:id")->execute(['id'=>$refund['booking_id']]); $pdo->commit(); Http::json(); } $api=new Razorpay((string)Config::get('RAZORPAY_KEY_ID'),(string)Config::get('RAZORPAY_KEY_SECRET')); $provider=$api->payment->fetch($refund['provider_payment_id'])->refund(['amount'=>(int)round((float)$refund['amount']*100)]); $pdo->prepare("UPDATE refunds SET status='processing',provider_refund_id=:provider WHERE id=:id")->execute(['provider'=>$provider['id'],'id'=>$id]); $pdo->commit(); Http::json(['providerRefundId'=>$provider['id']]); }
