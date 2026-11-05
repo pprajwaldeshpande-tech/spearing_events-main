@@ -4,8 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Spearing Events — Discover Local Events</title>
-  <link rel="stylesheet" href="style.css?v=12" />
+  <link rel="stylesheet" href="style.css?v=8" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet" />
   <style>
     footer { text-align: center; padding: 2rem; border-top: 1px solid var(--border); font-size: .82rem; color: var(--muted); }
   </style>
@@ -13,55 +16,105 @@
 <body>
 
 <nav class="navbar">
-  <div class="logo"> <span>Spearing</span> Events</div>
+  <a class="logo" href="index.html" aria-label="Spearing Events home">
+    <span class="brand-mark">SE</span>
+    <span class="brand-name"><span>Spearing</span> Events</span>
+  </a>
   <ul class="nav-links" id="nav-links">
     <li><a href="index.html?home=member-cta-2" class="active">Home</a></li>
   </ul>
 </nav>
 
-<section class="hero">
-  <h1>Discover Events<br>Happening Near You</h1>
-  <p>Find concerts, tech meetups, food festivals, workshops, and more — all in one place. Free to join.</p>
-  <div class="hero-actions">
-    <a href="signup.html"><button class="btn btn-primary">Get Started →</button></a>
-    <a href="#events"><button class="btn btn-outline">Browse Events</button></a>
+<main class="landing-page">
+<section class="hero landing-hero">
+  <div class="hero-glow hero-glow-one"></div>
+  <div class="hero-glow hero-glow-two"></div>
+  <div class="hero-content">
+    <div class="hero-copy">
+      <span class="eyebrow"><span></span> Bengaluru's event platform</span>
+      <h1>Discover moments.<br><em>Create memories.</em></h1>
+      <p>Explore outstanding concerts, conferences, festivals and workshops happening around you. Reserve your place in just a few taps.</p>
+      <div class="hero-actions">
+        <a href="signup.html" class="btn btn-primary btn-hero">Create free account <span aria-hidden="true">→</span></a>
+        <a href="#events" class="btn btn-outline btn-hero">Explore events</a>
+      </div>
+      <div class="hero-trust">
+        <div class="avatar-stack" aria-hidden="true"><span>SK</span><span>AR</span><span>MP</span></div>
+        <div><strong>Trusted event discovery</strong><small>Simple booking · Secure reservations</small></div>
+      </div>
+    </div>
+    <div class="hero-visual" aria-label="Featured live event">
+      <div class="hero-photo"></div>
+      <div class="floating-ticket">
+        <span class="ticket-label">Featured experience</span>
+        <strong>Live. Local. Unforgettable.</strong>
+        <div><span>Explore now</span><span class="ticket-arrow">↗</span></div>
+      </div>
+      <div class="hero-floating-stat"><strong id="hero-event-count">—</strong><span>curated events</span></div>
+    </div>
   </div>
 </section>
 
 <div class="stat-bar" id="stat-bar">
   <div class="stat"><div class="num" id="stat-events">—</div><div class="lbl">Events</div></div>
   <div class="stat"><div class="num" id="stat-cats">—</div><div class="lbl">Categories</div></div>
-  <div class="stat"><div class="num" title="Karnataka">KA</div><div class="lbl">Bengaluru, Karnataka</div></div>
+  <div class="stat"><div class="num" title="Karnataka">KA</div><div class="lbl">Across Karnataka</div></div>
+  <div class="stat"><div class="num">24/7</div><div class="lbl">Easy discovery</div></div>
 </div>
 
-<div class="features">
-  <div class="feature-card">
-    <h3>Smart Search</h3>
-    <p>Filter events by name, location, category, or date to find exactly what you want.</p>
+<section class="categories-section landing-section" aria-labelledby="categories-title">
+  <div class="section-heading">
+    <div><span class="section-kicker">Find your passion</span><h2 id="categories-title">Explore by category</h2></div>
+    <p>From learning to live entertainment, there is something remarkable for every interest.</p>
   </div>
-  <div class="feature-card">
-    <h3>Nearby Events</h3>
-    <p>See events sorted by distance from your location with real km indicators.</p>
+  <div class="category-grid" id="category-grid">
+    <div class="category-skeleton"></div><div class="category-skeleton"></div><div class="category-skeleton"></div><div class="category-skeleton"></div>
   </div>
-  <div class="feature-card">
-    <h3>UPI Payments</h3>
-    <p>Pay using the event organizer's shared UPI QR. Paid bookings are confirmed only after an admin verifies the transaction.</p>
-  </div>
-  <div class="feature-card">
-    <h3>Admin Approval</h3>
-    <p>Admins review payment references before confirming paid bookings and issuing entry tickets.</p>
-  </div>
-</div>
+</section>
 
 <div class="preview-section" id="events">
   <div class="section-head">
-    <h2>Upcoming Events</h2>
-    <a href="#events"><button class="btn btn-outline btn-sm">View events →</button></a>
+    <div><span class="section-kicker">On the calendar</span><h2>Upcoming Events</h2></div>
+    <a href="#events" class="text-link">View all events <span>→</span></a>
   </div>
   <div class="events-grid" id="preview-grid">
     <div class="empty-state"><div class="icon"></div><p>Loading events…</p></div>
   </div>
 </div>
+
+<section class="popular-section landing-section" aria-labelledby="popular-title">
+  <div class="section-heading">
+    <div><span class="section-kicker">Community favourites</span><h2 id="popular-title">Popular experiences</h2></div>
+    <p>Discover standout experiences selected from the events currently available on the platform.</p>
+  </div>
+  <div class="events-grid popular-grid" id="popular-grid"></div>
+</section>
+
+<section class="why-section landing-section">
+  <div class="why-copy">
+    <span class="section-kicker">Why Spearing Events</span>
+    <h2>Everything you need for a seamless outing</h2>
+    <p>Discovery, reservation and event access live together in one beautifully simple experience.</p>
+  </div>
+  <div class="features">
+    <article class="feature-card"><span class="feature-icon">⌕</span><h3>Smart discovery</h3><p>Search and filter experiences by category, location and date.</p></article>
+    <article class="feature-card"><span class="feature-icon">⌖</span><h3>Events nearby</h3><p>Use your location to explore experiences around you with the live map.</p></article>
+    <article class="feature-card"><span class="feature-icon">₹</span><h3>Flexible payments</h3><p>Reserve paid experiences using the platform's existing UPI workflow.</p></article>
+    <article class="feature-card"><span class="feature-icon">✓</span><h3>Digital reservations</h3><p>Booking confirmation and entry tickets stay connected to your account.</p></article>
+  </div>
+</section>
+
+<section class="how-section landing-section" aria-labelledby="how-title">
+  <div class="section-heading centered">
+    <div><span class="section-kicker">Three simple steps</span><h2 id="how-title">Your next experience is closer than you think</h2></div>
+  </div>
+  <div class="steps-grid">
+    <article><span>01</span><h3>Discover</h3><p>Browse upcoming events and find one that matches your interests.</p></article>
+    <article><span>02</span><h3>Reserve</h3><p>Review the details, choose your place and complete your booking.</p></article>
+    <article><span>03</span><h3>Experience</h3><p>Keep your digital reservation ready and enjoy the event.</p></article>
+  </div>
+</section>
+</main>
 
 <section class="location-explorer" aria-labelledby="location-explorer-title">
   <div class="location-explorer-heading">
@@ -92,12 +145,15 @@
   <p class="map-attribution-note">Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a>. Place searches and requested GPS area lookups are sent to OpenStreetMap. Spearing Events does not save precise location or share it with other users.</p>
 </section>
 
-<footer>© 2026 Spearing Events · Made for Bengaluru</footer>
+<footer class="landing-footer">
+  <div><a class="logo footer-logo" href="index.html"><span class="brand-mark">SE</span><span class="brand-name"><span>Spearing</span> Events</span></a><p>Great events. Seamless reservations. Memorable moments.</p></div>
+  <nav aria-label="Footer navigation"><a href="#events">Events</a><a href="#location-explorer-title">Explore map</a><a href="login.html">Login</a><a href="signup.html">Sign up</a></nav>
+  <small>© 2026 Spearing Events · Made for Bengaluru</small>
+</footer>
 <div id="toast-container"></div>
 
-<script src="shared.js?v=12"></script>
-<script src="api-client.js?v=12"></script>
-<script src="event-assistant.js?v=12"></script>
+<script src="shared.js?v=8"></script>
+<script src="api-client.js?v=8"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
   const stateLocations = [
@@ -377,11 +433,29 @@
   (async function () {
     const events = await fetchEvents();
     document.getElementById('stat-events').textContent = events.length;
+    document.getElementById('hero-event-count').textContent = events.length;
     const cats = new Set(events.map(e => e.category).filter(Boolean));
     document.getElementById('stat-cats').textContent = cats.size;
 
+    const categoryIcons = {
+      Technology: '⌘', Music: '♫', Food: '◇', Business: '▣',
+      Health: '✚', Arts: '◉', Sports: '◆', Education: '⌂', Other: '✦'
+    };
+    const categoryCounts = events.reduce((counts, event) => {
+      const category = event.category || 'Other';
+      counts[category] = (counts[category] || 0) + 1;
+      return counts;
+    }, {});
+    const categories = Object.keys(categoryCounts).sort((a, b) => categoryCounts[b] - categoryCounts[a]);
+    document.getElementById('category-grid').innerHTML = categories.slice(0, 8).map(category => `
+      <a class="category-card" href="#events">
+        <span class="category-icon">${categoryIcons[category] || categoryIcons.Other}</span>
+        <span><strong>${category}</strong><small>${categoryCounts[category]} event${categoryCounts[category] === 1 ? '' : 's'} available</small></span>
+      </a>
+    `).join('');
+
     const grid = document.getElementById('preview-grid');
-    const show = events.slice(0, 3);
+    const show = events.slice(0, 6);
 
     if (!show.length) {
       grid.innerHTML = `<div class="empty-state"><div class="icon"></div><p>No events yet.</p></div>`;
@@ -420,6 +494,25 @@
         </div>
       `;
     }).join('');
+
+    const popularGrid = document.getElementById('popular-grid');
+    const popular = [...events].sort((a, b) => Number(b.capacity || 0) - Number(a.capacity || 0)).slice(0, 3);
+    if (popularGrid) {
+      popularGrid.innerHTML = popular.map(event => {
+        const image = getEventImage(event);
+        const price = !event.price || Number(event.price) === 0 ? 'Free entry' : `From ₹${Number(event.price).toLocaleString('en-IN')}`;
+        return `
+          <article class="card event-card">
+            <img class="event-img" src="${image}" alt="${event.title}" loading="lazy" onerror="this.style.display='none'" />
+            <div class="event-card-body">
+              ${catBadge(event.category)}
+              <h3>${event.title}</h3>
+              <div class="event-meta"><span>${formatDate(event.date)}</span><span>${event.location}</span></div>
+              <div class="card-actions"><span class="event-price">${price}</span><a class="btn btn-primary btn-sm" href="event.html?id=${encodeURIComponent(event.id)}">View event →</a></div>
+            </div>
+          </article>`;
+      }).join('');
+    }
   })();
 </script>
 </body>
