@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Spearing Events — Discover Local Events</title>
-  <link rel="stylesheet" href="style.css?v=8" />
+  <link rel="stylesheet" href="style.css?v=10" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -198,7 +198,7 @@
       nav.innerHTML = `
         <li><a href="index.html?home=member-cta-2" class="active">Home</a></li>
         <li><a href="login.html">Login</a></li>
-        <li><a href="signup.html"><button class="btn btn-primary btn-sm">Sign Up Free</button></a></li>
+        <li><a href="signup.html" class="btn btn-primary btn-sm">Sign Up Free</a></li>
       `;
       document.getElementById('map-user-label').hidden = true;
       window.mapProfileName = '';
@@ -470,7 +470,7 @@
 
       return `
         <div class="card event-card">
-          <img class="event-img" src="${img}" alt="${e.title}" onerror="this.style.display='none'" loading="lazy" />
+          <img class="event-img" src="${img}" alt="${e.title}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&amp;fit=crop&amp;w=900&amp;q=80'" loading="lazy" />
           <div class="event-card-body">
             ${catBadge(e.category)}
             <h3>${e.title}</h3>
@@ -503,7 +503,7 @@
         const price = !event.price || Number(event.price) === 0 ? 'Free entry' : `From ₹${Number(event.price).toLocaleString('en-IN')}`;
         return `
           <article class="card event-card">
-            <img class="event-img" src="${image}" alt="${event.title}" loading="lazy" onerror="this.style.display='none'" />
+            <img class="event-img" src="${image}" alt="${event.title}" loading="lazy" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&amp;fit=crop&amp;w=900&amp;q=80'" />
             <div class="event-card-body">
               ${catBadge(event.category)}
               <h3>${event.title}</h3>
