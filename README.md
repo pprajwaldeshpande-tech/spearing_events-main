@@ -134,6 +134,45 @@ The current upload implementation writes validated image files beneath `public/u
 
 ## Request and business flows
 
+### Application flow diagram
+
+```mermaid
+flowchart TD
+    Visitor["Visitor / User"] --> Browse["Browse published events"]
+    Browse --> Select["Select event and ticket quantity"]
+    Select --> Session{"Signed in?"}
+    Session -- No --> SignIn["Sign in / Register"]
+    SignIn --> CreateBooking
+    Session -- Yes --> CreateBooking["Create booking"]
+    CreateBooking --> Validate["API validates user, event, seats, and quantity"]
+    Validate --> Reserve["Save pending booking and reserve seats in MySQL"]
+    Reserve --> Method{"Payment method"}
+
+    Method -- Free --> FreeConfirm["Confirm booking"]
+    Method -- QR / UPI --> PayUPI["Pay using QR / UPI app"]
+    PayUPI --> SubmitUTR["Submit transaction reference"]
+    SubmitUTR --> SaveUTR["API validates ownership and reference; save to booking"]
+    SaveUTR --> AdminReview["Admin reviews submitted reference"]
+    AdminReview -- Verify --> UPIConfirm["Capture recorded payment and confirm booking"]
+    AdminReview -- Reject --> CancelUPI["Cancel booking and show rejection reason"]
+
+    Method -- Demo card --> Authorize["Validate demo card and save authorized payment"]
+    Authorize --> CardReview["Admin reviews card payment"]
+    CardReview -- Approve --> CardConfirm["Capture demo payment and confirm booking"]
+    CardReview -- Reject --> CancelCard["Cancel booking and record demo refund status"]
+
+    Method -- Razorpay --> Gateway["Create order and complete gateway payment"]
+    Gateway --> GatewayVerify["Verify signature / payment webhook"]
+    GatewayVerify --> PaidConfirm["Capture payment and confirm booking"]
+
+    FreeConfirm --> Ticket["Create tokenized ticket(s)"]
+    UPIConfirm --> Ticket
+    CardConfirm --> Ticket
+    PaidConfirm --> Ticket
+    Ticket --> UserTicket["User views ticket QR / pass"]
+    UserTicket --> CheckIn["Staff verifies QR or token at entry"]
+```
+
 ### Authentication flow
 
 1. The browser loads a page and requests `GET /api/auth/me`.
