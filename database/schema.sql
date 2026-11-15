@@ -117,7 +117,7 @@ CREATE TABLE bookings (
 CREATE TABLE payments (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   booking_id CHAR(26) NOT NULL,
-  provider ENUM('razorpay','free','upi') NOT NULL,
+  provider ENUM('razorpay','free','upi','demo_card') NOT NULL,
   provider_order_id VARCHAR(100) NULL,
   provider_payment_id VARCHAR(100) NULL,
   amount DECIMAL(10,2) NOT NULL,

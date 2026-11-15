@@ -205,7 +205,7 @@
 
 <div id="toast-container"></div>
 <script src="shared.js?v=13"></script>
-<script src="api-client.js?v=14"></script>
+<script src="api-client.js?v=15"></script>
 <script src="event-assistant.js?v=14"></script>
 <script>
   // Fallback coords: Bengaluru Majestic
@@ -584,6 +584,7 @@
           <div class="event-meta"><span>${formatDate(booking.eventStartsAt)}</span><span>${escapeUserHtml(booking.eventVenue || '')}</span></div>
           <div style="font-size:.82rem;color:var(--muted)">Booking ID: ${escapeUserHtml(booking.paymentId)}</div>
           <div style="font-size:.82rem;color:var(--muted)">Booked: ${booking.paidAt ? formatDate(booking.paidAt) : '-'}</div>
+          ${booking.status === 'rejected' ? `<div style="margin-top:.65rem;padding:.75rem;border:1px solid rgba(239,68,68,.35);border-radius:.5rem;background:rgba(239,68,68,.08);font-size:.82rem"><strong>Rejection reason:</strong> ${escapeUserHtml(booking.rejection_reason || 'Reason not recorded')}${booking.paymentProvider === 'demo_card' ? `<br><strong>Refund status:</strong> ${booking.refundStatus === 'processed' ? 'Processed (demo payment; no real charge was made)' : 'Not available'}` : ''}</div>` : ''}
           <span class="btn btn-sm btn-outline">${escapeUserHtml(status)}</span>
           ${booking.status === 'approved' && !ended ? '<button class="btn btn-primary btn-sm" type="button" onclick="event.stopPropagation();openGatePass(\'' + booking.paymentId + '\')">Show QR Entry Pass</button>' : ''}
           </div>
@@ -686,7 +687,8 @@
       const event     = allEvents.find(e => e.id === r.eventId);
       const img       = event ? getEventImage(event) : '';
       const statusCls = r.status === 'approved' ? 'btn-success' : r.status === 'rejected' ? 'btn-danger' : 'btn-warn';
-      const statusLbl = r.status === 'approved' ? 'Approved' : r.status === 'rejected' ? 'Rejected' : (r.paymentReference ? 'Payment Submitted' : 'Pending Payment');
+      const cardAwaitingApproval = r.paymentProvider === 'demo_card' && r.paymentStatus === 'authorized';
+      const statusLbl = r.status === 'approved' ? 'Approved' : r.status === 'rejected' ? 'Rejected' : cardAwaitingApproval ? 'Card Payment Awaiting Approval' : (r.paymentReference ? 'Payment Submitted' : 'Pending Payment');
       const cancelled = r.event_status === 'cancelled';
       const rejected = r.status === 'rejected';
 
@@ -706,13 +708,14 @@
             ${rejected ? `
               <div style="margin-top:.85rem;padding:.85rem;border:1px solid rgba(239,68,68,.35);border-radius:.5rem;background:rgba(239,68,68,.08)">
                 <strong style="color:var(--danger)">Your booking was rejected by the administrator.</strong>
-                <div style="font-size:.82rem;margin-top:.4rem"><strong>Reason:</strong> ${r.rejection_reason || 'Reason not recorded'}</div>
+                <div style="font-size:.82rem;margin-top:.4rem"><strong>Reason:</strong> ${escapeUserHtml(r.rejection_reason || 'Reason not recorded')}</div>
+                ${r.paymentProvider === 'demo_card' ? `<div style="font-size:.82rem"><strong>Refund status:</strong> ${r.refundStatus === 'processed' ? 'Processed (demo payment; no real charge was made)' : 'Not available'}</div>` : ''}
                 ${r.rejected_at ? `<div style="font-size:.82rem"><strong>Rejected on:</strong> ${new Date(r.rejected_at.replace(' ', 'T')).toLocaleString('en-IN')}</div>` : ''}
               </div>` : ''}
             <div class="card-actions" style="justify-content:space-between">
               <span class="btn ${statusCls} btn-sm" style="cursor:default">${statusLbl}</span>
               <span style="font-size:.8rem;color:var(--muted)">
-                ${r.amount > 0 ? `₹${Number(r.amount).toLocaleString('en-IN')} paid` : 'Free'}
+                ${r.paymentProvider === 'demo_card' && r.paymentStatus === 'authorized' ? `₹${Number(r.amount).toLocaleString('en-IN')} · awaiting approval` : r.paymentProvider === 'demo_card' && r.paymentStatus === 'refunded' ? `₹${Number(r.amount).toLocaleString('en-IN')} · refund processed` : r.amount > 0 ? `₹${Number(r.amount).toLocaleString('en-IN')} paid` : 'Free'}
               </span>
             </div>
             ${r.status === 'approved' && r.tickets?.length && r.event_status !== 'cancelled' ? `

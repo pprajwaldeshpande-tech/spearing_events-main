@@ -73,8 +73,6 @@
     <button type="button" class="admin-nav-item" data-admin-section="entry-passes" onclick="switchAdminTab('entry-passes')"><span>▧</span>Entry Management</button>
     <button type="button" class="admin-nav-item" data-admin-section="payments" onclick="switchAdminTab('payments')"><span>▣</span>Payment QR</button>
     <button type="button" class="admin-nav-item" data-admin-section="support" onclick="switchAdminTab('support')"><span>?</span>Support Requests</button>
-    <button type="button" class="admin-nav-item" data-admin-section="reports" onclick="switchAdminTab('reports')"><span>◫</span>Reports &amp; Analytics</button>
-    <button type="button" class="admin-nav-item" data-admin-section="settings" onclick="switchAdminTab('settings')"><span>⚙</span>Settings</button>
     <button type="button" class="admin-nav-item admin-nav-logout" onclick="logoutAdmin()"><span>↪</span>Logout</button>
   </nav>
 </aside>
@@ -410,7 +408,7 @@
               <th>Event</th>
               <th>Amount</th>
               <th>Booking ID</th>
-              <th>UPI reference</th>
+              <th>Payment reference / method</th>
               <th>Booked on</th>
               <th>Status</th>
               <th>Actions</th>
@@ -426,10 +424,6 @@
     <!-- ── Shared payment QR tab ─────────────────────────── -->
     <div class="admin-tab-panel" id="panel-payments" role="tabpanel" aria-labelledby="admin-tab-payments">
       <div style="max-width:620px;margin:1.5rem auto">
-        <h3>Dynamic UPI Payment Integration</h3>
-        <p style="color:var(--muted);margin:0.75rem 0 1rem">
-          Configure your receiver UPI account. Spearing Events automatically generates a dynamic UPI payment QR prefilled with the exact event price (e.g. ₹500 or ₹1,000) for every booking.
-        </p>
         <div class="form-group">
           <label for="payment-upi-id">Receiver UPI ID *</label>
           <input id="payment-upi-id" type="text" placeholder="pprajwaldeshpande-1@okicici" autocomplete="off" />
@@ -440,28 +434,6 @@
           <input id="payment-payee-name" type="text" placeholder="Prajwal Deshpande" maxlength="100" />
         </div>
         <button class="btn btn-primary" id="payment-settings-save" onclick="savePaymentSettings()">Save payment details</button>
-
-        <!-- Live Dynamic UPI QR Tester -->
-        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1.25rem;margin:1.75rem 0">
-          <h4 style="margin:0 0 .5rem;color:var(--text);font-size:1rem;display:flex;align-items:center;gap:.5rem">
-             Dynamic UPI QR Tester
-          </h4>
-          <p style="font-size:.82rem;color:var(--muted);margin:0 0 1rem;line-height:1.5">
-            Test and preview real dynamic UPI QR codes. Click any button below to generate a live QR code with that exact amount pre-filled for receiver <strong style="color:var(--accent2)">pprajwaldeshpande-1@okicici</strong>:
-          </p>
-          <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">
-            <button type="button" class="btn btn-outline btn-sm" onclick="testDynamicQr(500)">Test ₹500 QR</button>
-            <button type="button" class="btn btn-outline btn-sm" onclick="testDynamicQr(700)">Test ₹700 QR</button>
-            <button type="button" class="btn btn-outline btn-sm" onclick="testDynamicQr(1000)">Test ₹1,000 QR</button>
-            <div style="display:flex;align-items:center;gap:.35rem">
-              <input type="number" id="test-custom-amount" placeholder="Custom ₹" style="width:110px;padding:.3rem .5rem;font-size:.82rem" min="1" step="1" />
-              <button type="button" class="btn btn-outline btn-sm" onclick="testCustomDynamicQr()">Preview</button>
-            </div>
-          </div>
-          <div id="dynamic-qr-tester-result" style="display:none;text-align:center;padding:1.25rem;background:var(--surface);border-radius:var(--radius-sm);border:1px dashed var(--border)">
-            <!-- Injected by testDynamicQr(amount) -->
-          </div>
-        </div>
 
         <hr style="border:0;border-top:1px solid var(--border);margin:1.25rem 0" />
         <p style="color:var(--muted);font-size:.82rem">Optional static fallback QR image (used only when dynamic QR cannot be generated).</p>
@@ -576,7 +548,7 @@
 
 <div id="toast-container"></div>
 <script src="shared.js?v=10"></script>
-<script src="api-client.js?v=11"></script>
+<script src="api-client.js?v=12"></script>
 <script>
   let allEvents    = [];
   let deleteTarget = null;
@@ -1216,12 +1188,17 @@
       const evt = allEvents.find(e => e.id === r.eventId);
       const img = evt ? getEventImage(evt) : '';
 
+      const paymentProvider = r.paymentProvider ?? r.payment_provider;
+      const paymentStatus = r.paymentStatus ?? r.payment_status;
+      const paymentReference = r.paymentReference ?? r.payment_reference;
+      const cardAwaitingApproval = paymentProvider === 'demo_card' && paymentStatus === 'authorized';
       const statusHtml = `<span class="status-${r.status}">${
-        r.status === 'pending' ? (r.paymentReference ? 'Payment submitted' : 'Pending') : r.status === 'approved' ? 'Approved' : 'Rejected'
+        r.status === 'pending' ? (cardAwaitingApproval ? 'Card payment awaiting approval' : paymentReference ? 'Payment submitted' : 'Pending') : r.status === 'approved' ? 'Approved' : 'Rejected'
       }</span>`;
+      const paymentSubmitted = Boolean(paymentReference) || cardAwaitingApproval;
 
       const actionBtns = r.status === 'pending' ? `
-        <button class="btn btn-success btn-sm" onclick="approveReg('${r.id}')" ${r.amount > 0 && !r.paymentReference ? 'disabled title="Waiting for the buyer to submit a payment reference"' : ''}>${r.amount > 0 ? 'Verify & confirm' : 'Confirm'}</button>
+        <button class="btn btn-success btn-sm" onclick="approveReg('${r.id}')" ${r.amount > 0 && !paymentSubmitted ? 'disabled title="Waiting for the buyer to submit a payment reference"' : ''}>${cardAwaitingApproval ? 'Approve card & confirm' : r.amount > 0 ? 'Verify & confirm' : 'Confirm'}</button>
         <button class="btn btn-danger btn-sm" onclick="rejectReg('${r.id}')">Reject</button>
       ` : `
         <span style="color:var(--muted)">—</span>
@@ -1248,7 +1225,7 @@
           </td>
           <td style="font-weight:600">${r.amount > 0 ? '<span style="color:var(--success)">₹' + Number(r.amount).toLocaleString('en-IN') + '</span>' : '<span style="color:var(--muted)">Free</span>'}</td>
           <td style="font-size:.78rem;color:var(--muted);font-family:monospace">${r.paymentId || '—'}</td>
-          <td style="font-size:.78rem;color:var(--muted);font-family:monospace">${r.paymentReference || '—'}</td>
+          <td style="font-size:.78rem;color:var(--muted);font-family:monospace">${cardAwaitingApproval || paymentProvider === 'demo_card' ? 'Demo card' : paymentReference || '—'}</td>
           <td style="white-space:nowrap;color:var(--muted)">${date}</td>
           <td>${statusHtml}</td>
           <td>
@@ -1319,54 +1296,11 @@
         body: JSON.stringify({ upiId, payeeName })
       });
       showToast('UPI payment details saved. Amount is generated from each booking.', 'success');
-      if (document.getElementById('dynamic-qr-tester-result')?.style.display !== 'none') {
-        const customVal = parseFloat(document.getElementById('test-custom-amount')?.value) || 500;
-        testDynamicQr(customVal);
-      }
     } catch (error) {
       showToast(error.message, 'error');
     } finally {
       button.disabled = false;
     }
-  }
-
-  function testDynamicQr(amount) {
-    const val = parseFloat(amount);
-    if (!val || val <= 0) {
-      showToast('Enter a valid amount greater than 0.', 'error');
-      return;
-    }
-    const upiId = document.getElementById('payment-upi-id')?.value.trim() || 'pprajwaldeshpande-1@okicici';
-    const payee = document.getElementById('payment-payee-name')?.value.trim() || 'Prajwal Deshpande';
-    const upiUri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payee)}&am=${val.toFixed(2)}&cu=INR&tn=${encodeURIComponent('Test Payment ' + val)}`;
-    const resultBox = document.getElementById('dynamic-qr-tester-result');
-    resultBox.style.display = 'block';
-    resultBox.innerHTML = `
-      <div style="display:inline-block;background:var(--surface2);border-radius:99px;padding:.3rem .9rem;font-size:.85rem;font-weight:700;color:var(--accent2);margin-bottom:.75rem">
-        Test Dynamic QR: ₹${val.toLocaleString('en-IN')}
-      </div>
-      <div style="margin:0 auto .75rem;text-align:center">
-        <img src="./api/payments/upi-qr?amount=${val}&note=Test+Payment&t=${Date.now()}"
-          alt="Test UPI QR for ₹${val}"
-          style="width:200px;height:200px;object-fit:contain;background:#fff;padding:10px;border-radius:10px;border:2px solid var(--accent);display:block;margin:0 auto" />
-      </div>
-      <div style="font-size:.82rem;color:var(--muted);margin-bottom:.5rem">
-        Receiver: <strong style="color:var(--accent2)">${upiId}</strong> (${payee}) · Amount prefilled: <strong style="color:var(--success)">₹${val.toLocaleString('en-IN')}</strong>
-      </div>
-      <div style="background:var(--surface2);padding:.5rem;border-radius:4px;font-family:monospace;font-size:.72rem;word-break:break-all;color:var(--text);margin-bottom:.75rem">
-        ${upiUri}
-      </div>
-      <div style="display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap">
-        <button class="btn btn-outline btn-sm" onclick="navigator.clipboard.writeText('${upiUri}').then(() => showToast('Test UPI Link copied!', 'success'))">Copy UPI Link</button>
-        <button class="btn btn-outline btn-sm" onclick="document.getElementById('dynamic-qr-tester-result').style.display='none'">Hide Test QR</button>
-      </div>
-    `;
-    resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
-
-  function testCustomDynamicQr() {
-    const val = document.getElementById('test-custom-amount')?.value;
-    testDynamicQr(val);
   }
 
   function viewEventQr(id) {

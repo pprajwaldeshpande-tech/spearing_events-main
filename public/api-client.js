@@ -56,7 +56,7 @@
     state.csrf = session.csrfToken;
     await loadUserData();
   };
-  const toLegacyBooking = booking => ({ ...booking, username: booking.username || state.user?.username, eventId: String(booking.event_id), eventTitle: booking.title, eventImage: booking.event_image || '', eventStartsAt: booking.starts_at || '', eventEndsAt: booking.ends_at || '', eventVenue: booking.venue || '', eventVenueDetails: booking.venue_details || '', amount: Number(booking.total_amount), paymentId: booking.id, bookingStatus: booking.status, paymentReference: booking.payment_reference || null, paidAt: booking.created_at, status: booking.status === 'confirmed' ? 'approved' : booking.status === 'cancelled' ? 'rejected' : 'pending', tickets: booking.tickets || [] });
+  const toLegacyBooking = booking => ({ ...booking, username: booking.username || state.user?.username, eventId: String(booking.event_id), eventTitle: booking.title, eventImage: booking.event_image || '', eventStartsAt: booking.starts_at || '', eventEndsAt: booking.ends_at || '', eventVenue: booking.venue || '', eventVenueDetails: booking.venue_details || '', amount: Number(booking.total_amount), paymentId: booking.id, bookingStatus: booking.status, paymentReference: booking.payment_reference || null, paymentProvider: booking.payment_provider || null, paymentStatus: booking.payment_status || null, refundStatus: booking.refund_status || null, paidAt: booking.created_at, status: booking.status === 'confirmed' ? 'approved' : booking.status === 'cancelled' ? 'rejected' : 'pending', tickets: booking.tickets || [] });
   const refreshEvents = async () => { state.events = (await api('/events?limit=50')).events; return state.events; };
   const authReady = api('/auth/me')
     .then(session => {
@@ -90,6 +90,7 @@
     },
     async createBooking(eventId, quantity = 1) { const key = crypto.randomUUID(); return api('/bookings', { method: 'POST', headers: { 'Idempotency-Key': key }, body: JSON.stringify({ eventId, quantity }) }); },
     async paymentOrder(bookingId) { return api('/payments/orders', { method: 'POST', body: JSON.stringify({ bookingId }) }); },
+    async demoCardPayment(payment) { return api('/payments/demo-card', { method: 'POST', body: JSON.stringify(payment) }); },
     async submitUpiPayment(bookingId, transactionReference) { return api('/payments/upi-submissions', { method: 'POST', body: JSON.stringify({ bookingId, transactionReference }) }); },
     async verifyPayment(payment) { return api('/payments/verify', { method: 'POST', body: JSON.stringify(payment) }); },
     async getWishlist() { return (await api('/wishlists')).eventIds; },

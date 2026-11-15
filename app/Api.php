@@ -42,12 +42,14 @@ final class Api
         if ($path === '/auth/password' && $method === 'PATCH') self::password();
         if ($path === '/payment-qr' && $method === 'GET') self::paymentQr();
         if ($path === '/payments/upi-qr' && $method === 'GET') self::dynamicUpiQr();
+        if ($path === '/payments/demo-card/status' && $method === 'GET') self::demoCardPaymentStatus();
         if ($path === '/events' && $method === 'GET') self::events();
         if (preg_match('#^/events/(\d+)$#', $path, $m) && $method === 'GET') self::event((int) $m[1]);
         if ($path === '/bookings' && $method === 'POST') self::createBooking();
         if ($path === '/me/bookings' && $method === 'GET') self::myBookings();
         if (preg_match('#^/bookings/([A-F0-9]{26})$#', $path, $m) && $method === 'GET') self::booking($m[1]);
         if ($path === '/payments/orders' && $method === 'POST') self::paymentOrder();
+        if ($path === '/payments/demo-card' && $method === 'POST') self::demoCardPayment();
         if ($path === '/payments/upi-submissions' && $method === 'POST') self::submitUpiPayment();
         if ($path === '/payments/verify' && $method === 'POST') self::verifyPayment();
         if ($path === '/payments/webhook' && $method === 'POST') self::webhook();
@@ -94,6 +96,14 @@ final class Api
         return (str_starts_with($keyId, 'rzp_test_') || str_starts_with($keyId, 'rzp_live_'))
             && $keySecret !== ''
             && !str_contains(strtolower($keySecret), 'replace_me');
+    }
+    private static function demoCardPaymentsEnabled(): bool
+    {
+        return strtolower((string) Config::get('APP_ENV', 'development')) !== 'production';
+    }
+    private static function demoCardPaymentStatus(): never
+    {
+        Http::json(['enabled' => self::demoCardPaymentsEnabled()]);
     }
     private static function paymentQrPath(): ?string
     {
@@ -284,7 +294,10 @@ final class Api
         $pdo = Database::connection(); $pdo->beginTransaction();
         try {
             $stmt = $pdo->prepare("SELECT id,total_amount,status,expires_at,payment_reference FROM bookings WHERE id=:id AND user_id=:user FOR UPDATE"); $stmt->execute(['id' => $bookingId, 'user' => $user['id']]); $booking = $stmt->fetch();
-            if (!$booking || $booking['status'] !== 'pending_payment' || (float) $booking['total_amount'] <= 0 || ($booking['expires_at'] && strtotime($booking['expires_at']) < time())) { $pdo->rollBack(); Http::error('BOOKING_UNAVAILABLE', 'This booking is no longer available for payment verification.', 409); }
+            if (!$booking || $booking['status'] !== 'pending_payment' || (float) $booking['total_amount'] <= 0) { $pdo->rollBack(); Http::error('BOOKING_UNAVAILABLE', 'This booking is no longer available for payment verification.', 409); }
+            $demoCardPayment = $pdo->prepare("SELECT 1 FROM payments WHERE booking_id=:booking AND provider='demo_card' AND status IN ('authorized','captured')");
+            $demoCardPayment->execute(['booking' => $bookingId]);
+            if ($demoCardPayment->fetchColumn()) { $pdo->rollBack(); Http::error('PAYMENT_ALREADY_SUBMITTED', 'A card payment is already awaiting admin approval.', 409); }
             $paymentSettings = Database::connection()->query('SELECT qr_image_path,upi_id FROM payment_settings WHERE id=1')->fetch() ?: [];
             $configuredUpi = trim((string) ($paymentSettings['upi_id'] ?? '')) ?: 'pprajwaldeshpande-1@okicici';
             if (!$configuredUpi && !($paymentSettings['qr_image_path'] ?? null)) { $pdo->rollBack(); Http::error('PAYMENTS_NOT_CONFIGURED', 'The admin has not configured payment details yet.', 503); }
@@ -522,6 +535,68 @@ final class Api
     {
         Auth::verifyCsrf(); $user = Auth::requireUser(); if (!self::razorpayConfigured()) Http::error('PAYMENTS_NOT_CONFIGURED', 'Online payments are not configured. Add valid Razorpay test keys to the project .env file.', 503); $input = Http::input(); $bookingId = strtoupper((string) ($input['bookingId'] ?? '')); $pdo = Database::connection(); $stmt = $pdo->prepare('SELECT b.*, e.title FROM bookings b JOIN events e ON e.id=b.event_id WHERE b.id=:id AND b.user_id=:user FOR UPDATE'); $pdo->beginTransaction(); $stmt->execute(['id' => $bookingId, 'user' => $user['id']]); $booking = $stmt->fetch(); if (!$booking || $booking['status'] !== 'pending_payment' || strtotime($booking['expires_at']) < time()) { $pdo->rollBack(); Http::error('BOOKING_UNAVAILABLE', 'This booking cannot be paid.', 409); } $api = new Razorpay((string) Config::get('RAZORPAY_KEY_ID'), (string) Config::get('RAZORPAY_KEY_SECRET')); $order = $api->order->create(['receipt' => $bookingId, 'amount' => (int) round((float) $booking['total_amount'] * 100), 'currency' => 'INR', 'notes' => ['booking_id' => $bookingId]]); $pdo->prepare('INSERT INTO payments (booking_id,provider,provider_order_id,amount,status) VALUES (:booking,:provider,:order,:amount,:status)')->execute(['booking' => $bookingId, 'provider' => 'razorpay', 'order' => $order['id'], 'amount' => $booking['total_amount'], 'status' => 'created']); $pdo->commit(); Http::json(['bookingId' => $bookingId, 'orderId' => $order['id'], 'amount' => (int) round((float) $booking['total_amount'] * 100), 'currency' => 'INR', 'keyId' => Config::get('RAZORPAY_KEY_ID')]);
     }
+    private static function demoCardPayment(): never
+    {
+        Auth::verifyCsrf();
+        $user = Auth::requireUser();
+        if (!self::demoCardPaymentsEnabled()) Http::error('DEMO_CARD_DISABLED', 'Demo card payments are disabled in production.', 403);
+        $input = Http::input();
+        $bookingId = strtoupper(trim((string) ($input['bookingId'] ?? '')));
+        $cardNumber = preg_replace('/\D/', '', (string) ($input['cardNumber'] ?? ''));
+        $cardExpiry = trim((string) ($input['cardExpiry'] ?? ''));
+        $cardCvv = trim((string) ($input['cardCvv'] ?? ''));
+        $cardHolder = strtoupper(trim((string) ($input['cardHolder'] ?? '')));
+
+        if (!preg_match('/^[A-F0-9]{26}$/', $bookingId)
+            || $cardNumber !== '4242424242424242'
+            || $cardExpiry !== '12/30'
+            || $cardCvv !== '123'
+            || $cardHolder === ''
+            || strlen($cardHolder) > 100) {
+            Http::error('DEMO_CARD_DECLINED', 'The card details could not be verified.', 422);
+        }
+
+        $pdo = Database::connection();
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare('SELECT id,user_id,total_amount,status,expires_at,payment_reference FROM bookings WHERE id=:id AND user_id=:user FOR UPDATE');
+            $stmt->execute(['id' => $bookingId, 'user' => $user['id']]);
+            $booking = $stmt->fetch();
+            if (!$booking || $booking['status'] !== 'pending_payment' || (float) $booking['total_amount'] <= 0
+                || $booking['payment_reference'] !== null
+                || ($booking['expires_at'] && strtotime($booking['expires_at']) < time())) {
+                $pdo->rollBack();
+                Http::error('BOOKING_UNAVAILABLE', 'This booking is no longer available for payment.', 409);
+            }
+
+            $existingPayment = $pdo->prepare("SELECT id,status FROM payments WHERE booking_id=:booking AND provider='demo_card' FOR UPDATE");
+            $existingPayment->execute(['booking' => $bookingId]);
+            if ($existing = $existingPayment->fetch()) {
+                if ($existing['status'] !== 'authorized') {
+                    $pdo->rollBack();
+                    Http::error('BOOKING_UNAVAILABLE', 'This card payment has already been processed.', 409);
+                }
+                $pdo->commit();
+                Http::json(['bookingId' => $bookingId, 'status' => 'pending_verification']);
+            }
+
+            $pdo->prepare("INSERT INTO payments (booking_id,provider,provider_payment_id,amount,status,provider_payload) VALUES (:booking,'demo_card',:payment,:amount,'authorized',:payload)")
+                ->execute([
+                    'booking' => $bookingId,
+                    'payment' => 'demo_' . bin2hex(random_bytes(16)),
+                    'amount' => $booking['total_amount'],
+                    'payload' => json_encode(['mode' => 'demo', 'cardLast4' => '4242']),
+                ]);
+            $pdo->prepare('UPDATE bookings SET payment_submitted_at=NOW(),expires_at=NULL WHERE id=:id')->execute(['id' => $bookingId]);
+            $pdo->commit();
+        } catch (\Throwable $error) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            throw $error;
+        }
+
+        Support::notify((int) $user['id'], 'payment_submitted', 'Your card payment was submitted and is awaiting admin approval.', ['bookingId' => $bookingId]);
+        Http::json(['bookingId' => $bookingId, 'status' => 'pending_verification']);
+    }
     private static function verifyPayment(): never
     {
         Auth::verifyCsrf(); $user = Auth::requireUser(); $input = Http::input(); $bookingId = strtoupper((string) ($input['bookingId'] ?? '')); $orderId = (string) ($input['razorpay_order_id'] ?? ''); $paymentId = (string) ($input['razorpay_payment_id'] ?? ''); $signature = (string) ($input['razorpay_signature'] ?? ''); if (!$bookingId || !$orderId || !$paymentId || !$signature) Http::error('VALIDATION_FAILED', 'Incomplete payment confirmation.', 422); $expected = hash_hmac('sha256', $orderId . '|' . $paymentId, (string) Config::get('RAZORPAY_KEY_SECRET')); if (!hash_equals($expected, $signature)) Http::error('PAYMENT_SIGNATURE_INVALID', 'Payment signature verification failed.', 400); self::capturePayment($bookingId, $orderId, $paymentId, ['source' => 'client_verify']); self::booking($bookingId);
@@ -559,11 +634,14 @@ final class Api
         $sql = 'SELECT b.*, u.username, e.title, e.description AS event_description, e.starts_at, e.ends_at, e.venue, e.venue_details, e.status AS event_status, '
             . '(SELECT i.path FROM event_images i WHERE i.event_id=e.id AND i.is_primary=1 ORDER BY i.id LIMIT 1) AS event_image, '
             . $cancellationSelect
-            . ' , p.provider_payment_id FROM bookings b JOIN users u ON u.id=b.user_id JOIN events e ON e.id=b.event_id LEFT JOIN payments p ON p.booking_id=b.id WHERE ' . $where . ' ORDER BY b.created_at DESC';
+            . " , p.id AS payment_row, CASE WHEN p.provider='' AND p.status='authorized' THEN 'demo_card' ELSE p.provider END AS payment_provider, p.status AS payment_status, p.provider_payment_id, p.provider_payload AS payment_payload FROM bookings b JOIN users u ON u.id=b.user_id JOIN events e ON e.id=b.event_id LEFT JOIN payments p ON p.booking_id=b.id WHERE " . $where . ' ORDER BY b.created_at DESC';
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         $rows = $stmt->fetchAll();
         foreach ($rows as &$row) {
+            $paymentPayload = json_decode((string) ($row['payment_payload'] ?? ''), true);
+            $row['refund_status'] = is_array($paymentPayload) ? ($paymentPayload['refundStatus'] ?? null) : null;
+            unset($row['payment_payload']);
             if ($row['status'] === 'confirmed') {
                 $ticketCount = $pdo->prepare('SELECT COUNT(*) FROM tickets WHERE booking_id=:id');
                 $ticketCount->execute(['id' => $row['id']]);
@@ -1024,13 +1102,19 @@ final class Api
     {
         Auth::verifyCsrf(); $admin = Auth::requireRole('admin'); $pdo = Database::connection(); $pdo->beginTransaction();
         try {
-            $stmt = $pdo->prepare('SELECT b.*,e.id AS event_id FROM bookings b JOIN events e ON e.id=b.event_id WHERE b.id=:id FOR UPDATE'); $stmt->execute(['id' => $id]); $booking = $stmt->fetch();
+            $stmt = $pdo->prepare("SELECT b.*,e.id AS event_id,p.id AS payment_row,CASE WHEN p.provider='' AND p.status='authorized' THEN 'demo_card' ELSE p.provider END AS payment_provider,p.status AS payment_status,p.provider_payload AS payment_payload FROM bookings b JOIN events e ON e.id=b.event_id LEFT JOIN payments p ON p.booking_id=b.id WHERE b.id=:id FOR UPDATE"); $stmt->execute(['id' => $id]); $booking = $stmt->fetch();
             if (!$booking) { $pdo->rollBack(); Http::error('NOT_FOUND', 'Booking not found.', 404); }
             if ($action === 'confirm') {
                 if ($booking['status'] !== 'pending_payment') { $pdo->rollBack(); Http::error('BOOKING_UNAVAILABLE', 'This booking is no longer awaiting verification.', 409); }
-                if ((float) $booking['total_amount'] > 0 && !$booking['payment_reference']) { $pdo->rollBack(); Http::error('PAYMENT_REFERENCE_REQUIRED', 'Verify the submitted transaction reference before confirming this paid booking.', 409); }
+                if ((float) $booking['total_amount'] > 0 && $booking['payment_provider'] === 'demo_card') {
+                    if ($booking['payment_status'] !== 'authorized') { $pdo->rollBack(); Http::error('PAYMENT_UNAVAILABLE', 'This card payment is no longer awaiting approval.', 409); }
+                    $pdo->prepare("UPDATE payments SET status='captured' WHERE id=:id AND status='authorized'")->execute(['id' => $booking['payment_row']]);
+                } elseif ((float) $booking['total_amount'] > 0 && !$booking['payment_reference']) {
+                    $pdo->rollBack();
+                    Http::error('PAYMENT_REFERENCE_REQUIRED', 'Verify the submitted transaction reference before confirming this paid booking.', 409);
+                }
                 $pdo->prepare("UPDATE bookings SET status='confirmed',expires_at=NULL WHERE id=:id")->execute(['id' => $id]);
-                if ((float) $booking['total_amount'] > 0) {
+                if ((float) $booking['total_amount'] > 0 && $booking['payment_provider'] !== 'demo_card') {
                     $pdo->prepare("INSERT INTO payments (booking_id,provider,provider_payment_id,amount,status) VALUES (:booking,'upi',:reference,:amount,'captured')")->execute(['booking' => $id, 'reference' => $booking['payment_reference'], 'amount' => $booking['total_amount']]);
                 }
                 self::confirmBooking($pdo, $id);
@@ -1041,6 +1125,13 @@ final class Api
                 if ($reason === '') { $pdo->rollBack(); Http::error('REJECTION_REASON_REQUIRED', 'Select or enter a rejection reason.', 422); }
                 if (strlen($reason) > 1000) { $pdo->rollBack(); Http::error('VALIDATION_FAILED', 'Rejection reason is too long.', 422); }
                 $pdo->prepare("UPDATE bookings SET status='cancelled', rejection_reason=:reason, rejected_at=NOW() WHERE id=:id")->execute(['reason' => $reason, 'id' => $id]);
+                if ($booking['payment_provider'] === 'demo_card' && $booking['payment_status'] === 'authorized') {
+                    $payload = json_decode((string) $booking['payment_payload'], true) ?: [];
+                    $payload['refundStatus'] = 'processed';
+                    $payload['refundNote'] = 'Demo payment only; no real charge was made.';
+                    $pdo->prepare("UPDATE payments SET status='refunded',provider_payload=:payload WHERE id=:id")
+                        ->execute(['payload' => json_encode($payload), 'id' => $booking['payment_row']]);
+                }
                 $pdo->prepare("UPDATE events SET reserved_quantity=GREATEST(0,reserved_quantity-:quantity) WHERE id=:id")->execute(['quantity' => $booking['quantity'], 'id' => $booking['event_id']]);
             }
             $pdo->commit();
@@ -1051,10 +1142,50 @@ final class Api
         Support::audit($admin['id'], "booking.$action", 'booking', $id);
         $input = Http::input();
         $rejectionReason = trim(strip_tags((string) ($input['reason'] ?? '')));
-        Support::notify((int) $booking['user_id'], $action === 'confirm' ? 'payment_verified' : 'booking_cancelled', $action === 'confirm' ? 'Your payment was verified and your booking is confirmed.' : 'Your booking was rejected by an administrator.', ['bookingId' => $id, 'reason' => $rejectionReason]);
+        $notification = $action === 'confirm'
+            ? 'Your payment was approved and your booking is confirmed.'
+            : ($booking['payment_provider'] === 'demo_card'
+                ? 'Your card payment was rejected. Refund status: processed (demo payment; no real charge was made). Reason: ' . $rejectionReason
+                : 'Your booking was rejected by an administrator. Reason: ' . $rejectionReason);
+        Support::notify((int) $booking['user_id'], $action === 'confirm' ? 'payment_verified' : 'booking_cancelled', $notification, ['bookingId' => $id, 'reason' => $rejectionReason, 'refundStatus' => $action === 'cancel' && $booking['payment_provider'] === 'demo_card' ? 'processed' : null]);
         Http::json();
     }
-    private static function adminRefund(string $id, string $action): never { Auth::verifyCsrf(); Auth::requireRole('admin'); $pdo=Database::connection(); $stmt=$pdo->prepare('SELECT r.*,p.provider_payment_id FROM refunds r JOIN payments p ON p.id=r.payment_id WHERE r.id=:id FOR UPDATE'); $pdo->beginTransaction(); $stmt->execute(['id'=>$id]); $refund=$stmt->fetch(); if(!$refund || $refund['status']!=='requested'){ $pdo->rollBack(); Http::error('REFUND_UNAVAILABLE','Refund cannot be processed.',409); } if($action==='reject'){ $pdo->prepare("UPDATE refunds SET status='rejected' WHERE id=:id")->execute(['id'=>$id]); $pdo->prepare("UPDATE bookings SET status='confirmed' WHERE id=:id")->execute(['id'=>$refund['booking_id']]); $pdo->commit(); Http::json(); } $api=new Razorpay((string)Config::get('RAZORPAY_KEY_ID'),(string)Config::get('RAZORPAY_KEY_SECRET')); $provider=$api->payment->fetch($refund['provider_payment_id'])->refund(['amount'=>(int)round((float)$refund['amount']*100)]); $pdo->prepare("UPDATE refunds SET status='processing',provider_refund_id=:provider WHERE id=:id")->execute(['provider'=>$provider['id'],'id'=>$id]); $pdo->commit(); Http::json(['providerRefundId'=>$provider['id']]); }
+    private static function adminRefund(string $id, string $action): never
+    {
+        Auth::verifyCsrf();
+        Auth::requireRole('admin');
+        $pdo = Database::connection();
+        $stmt = $pdo->prepare('SELECT r.*,p.provider,p.provider_payment_id FROM refunds r JOIN payments p ON p.id=r.payment_id WHERE r.id=:id FOR UPDATE');
+        $pdo->beginTransaction();
+        $stmt->execute(['id' => $id]);
+        $refund = $stmt->fetch();
+        if (!$refund || $refund['status'] !== 'requested') {
+            $pdo->rollBack();
+            Http::error('REFUND_UNAVAILABLE', 'Refund cannot be processed.', 409);
+        }
+        if ($action === 'reject') {
+            $pdo->prepare("UPDATE refunds SET status='rejected' WHERE id=:id")->execute(['id' => $id]);
+            $pdo->prepare("UPDATE bookings SET status='confirmed' WHERE id=:id")->execute(['id' => $refund['booking_id']]);
+            $pdo->commit();
+            Http::json();
+        }
+        if ($refund['provider'] === 'demo_card') {
+            $providerRefundId = 'demo_refund_' . bin2hex(random_bytes(12));
+            $pdo->prepare("UPDATE refunds SET status='processed',provider_refund_id=:provider WHERE id=:id")
+                ->execute(['provider' => $providerRefundId, 'id' => $id]);
+            $pdo->prepare("UPDATE payments SET status='refunded' WHERE id=:id")->execute(['id' => $refund['payment_id']]);
+            $pdo->prepare("UPDATE bookings SET status='refunded' WHERE id=:id")->execute(['id' => $refund['booking_id']]);
+            $pdo->prepare("UPDATE tickets SET status='refunded' WHERE booking_id=:id")->execute(['id' => $refund['booking_id']]);
+            $pdo->commit();
+            Http::json(['providerRefundId' => $providerRefundId, 'status' => 'processed']);
+        }
+        $api = new Razorpay((string) Config::get('RAZORPAY_KEY_ID'), (string) Config::get('RAZORPAY_KEY_SECRET'));
+        $provider = $api->payment->fetch($refund['provider_payment_id'])->refund(['amount' => (int) round((float) $refund['amount'] * 100)]);
+        $pdo->prepare("UPDATE refunds SET status='processing',provider_refund_id=:provider WHERE id=:id")
+            ->execute(['provider' => $provider['id'], 'id' => $id]);
+        $pdo->commit();
+        Http::json(['providerRefundId' => $provider['id']]);
+    }
     private static function summary(): never
     {
         Auth::requireRole('admin');

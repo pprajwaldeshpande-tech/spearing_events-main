@@ -17,6 +17,8 @@ Browser requests use same-origin PHP sessions. Read `csrfToken` from `GET /auth/
 | POST | `/bookings` | Signed in | Reserve inventory and create booking |
 | GET | `/me/bookings`, `/bookings/{id}` | Signed in | Booking history/details |
 | POST | `/payments/orders` | Signed in | Create Razorpay order |
+| GET | `/payments/demo-card/status` | Public | Check whether demo card payments are enabled |
+| POST | `/payments/demo-card` | Signed in | Submit demo card payment for admin approval |
 | POST | `/payments/verify` | Signed in | Verify checkout signature |
 | POST | `/payments/webhook` | Razorpay | Verify webhook and reconcile capture |
 | GET | `/tickets/{token}`, `/tickets/{token}/qr` | Owner/staff | Ticket details and PNG QR |
@@ -33,7 +35,9 @@ Browser requests use same-origin PHP sessions. Read `csrfToken` from `GET /auth/
 | POST | `/payments/upi-submissions` | Signed in | Submit UPI UTR / transaction reference for verification |
 | POST | `/admin/payment-settings` | Admin | Update receiver UPI ID and payee display name |
 | POST | `/admin/payment-qr` | Admin | Upload optional fallback static payment QR |
-| POST | `/admin/bookings/{id}/confirm|cancel` | Admin | Booking management and manual UPI payment confirmation |
+| POST | `/admin/bookings/{id}/confirm|cancel` | Admin | Confirm submitted UPI or demo card payment, or reject with a reason |
 | POST | `/admin/refunds/{id}/approve|reject` | Admin | Refund decision |
 
 Razorpay is authoritative: neither redirects nor browser responses confirm a paid booking until the signature or webhook is verified on this backend.
+
+Demo card submissions do not charge a real card. The booking stays pending until an administrator confirms or rejects it. A rejected demo card payment is marked as a simulated processed refund, and the rejection reason and refund status are returned with the booking.

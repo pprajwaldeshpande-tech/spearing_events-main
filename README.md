@@ -36,6 +36,7 @@ Spearing Events is a session-authenticated event discovery, booking, payment, ti
 
 - **UPI/manual verification:** the administrator uploads a payment QR, the customer submits a transaction reference, and an administrator verifies it outside the application.
 - **Razorpay:** the application creates an order, verifies signatures, processes payment webhooks, creates tickets, and supports refunds.
+- **Demo card:** a hard-coded test card submission waits for admin approval before the booking is confirmed. Admin rejection stores a reason and marks the simulated refund processed; this flow makes no real charge.
 
 Manual UPI submission must not be treated as proof of payment. Free tickets and free bookings can also be processed through the application's booking flow.
 
@@ -61,7 +62,8 @@ Manual UPI submission must not be treated as proof of payment. Free tickets and 
 - Email-and-password authentication with CSRF protection, session rotation, login throttling, password reset tokens, and role/status enforcement.
 - Event publishing, cancellation, archiving, categories, venue details, coordinates, capacity, ticket prices, and gallery images.
 - Booking quantity validation, idempotency keys, seat checks, ticket generation, QR codes, check-in, and entry-pass management.
-- Manual UPI and Razorpay payment flows.
+- Manual UPI/QR payments with admin verification, Razorpay payments, and a demo-only hard-coded card payment flow with admin approval.
+- Demo card values: `4242 4242 4242 4242`, expiry `12/30`, and CVV `123`. The cardholder name is prefilled from the signed-in user's profile and can be edited. This test flow does not charge a real card or store card details, and is automatically disabled when `APP_ENV=production`.
 - Refund requests, administrator approval/rejection, Razorpay refund processing, and audit records.
 - Reviews, wishlists, notifications, support tickets, administrator reports, account suspension, and profile management.
 - Payment configuration and QR image management.
@@ -291,6 +293,7 @@ Apply migrations in ascending filename order. Current migrations cover:
 - Linkable authentication identities
 - Dynamic UPI QR configuration
 - Wishlist and venue details
+- Demo card payment provider and repair of authorized payments with an empty provider
 
 Additional standalone migration scripts are also provided in `database/`. Review them and use only for existing databases requiring the corresponding feature.
 

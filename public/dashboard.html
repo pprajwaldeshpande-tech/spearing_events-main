@@ -112,7 +112,7 @@
 
 <div id="toast-container"></div>
 <script src="shared.js?v=7"></script>
-<script src="api-client.js?v=7"></script>
+<script src="api-client.js?v=8"></script>
 <script>
   // Fallback coords: Bengaluru Majestic
   const FALLBACK_LAT = 12.9762;
@@ -334,7 +334,8 @@
       const event     = allEvents.find(e => e.id === r.eventId);
       const img       = event ? getEventImage(event) : '';
       const statusCls = r.status === 'approved' ? 'btn-success' : r.status === 'rejected' ? 'btn-danger' : 'btn-warn';
-      const statusLbl = r.status === 'approved' ? 'Approved' : r.status === 'rejected' ? 'Rejected' : 'Pending Approval';
+      const cardAwaitingApproval = r.paymentProvider === 'demo_card' && r.paymentStatus === 'authorized';
+      const statusLbl = r.status === 'approved' ? 'Approved' : r.status === 'rejected' ? 'Rejected' : cardAwaitingApproval ? 'Card Payment Awaiting Approval' : 'Pending Approval';
 
       return `
         <div class="card event-card" onclick="goToEvent('${r.eventId}')">
@@ -342,10 +343,11 @@
           <div class="event-card-body">
             <h3>${r.eventTitle}</h3>
             ${event ? `<div class="event-meta"><span> ${formatDate(event.date)}</span><span> ${event.location}</span></div>` : ''}
+            ${r.status === 'rejected' ? `<div style="margin:.75rem 0;padding:.75rem;border:1px solid rgba(239,68,68,.35);border-radius:.5rem;background:rgba(239,68,68,.08);font-size:.82rem"><strong>Rejection reason:</strong> ${escapeUserHtml(r.rejection_reason || 'Reason not recorded')}${r.paymentProvider === 'demo_card' ? `<br><strong>Refund status:</strong> ${r.refundStatus === 'processed' ? 'Processed (demo payment; no real charge was made)' : 'Not available'}` : ''}</div>` : ''}
             <div class="card-actions" style="justify-content:space-between">
               <span class="btn ${statusCls} btn-sm" style="cursor:default">${statusLbl}</span>
               <span style="font-size:.8rem;color:var(--muted)">
-                ${r.amount > 0 ? `₹${Number(r.amount).toLocaleString('en-IN')} paid` : 'Free'}
+                ${r.paymentProvider === 'demo_card' && r.paymentStatus === 'authorized' ? `₹${Number(r.amount).toLocaleString('en-IN')} · awaiting approval` : r.paymentProvider === 'demo_card' && r.paymentStatus === 'refunded' ? `₹${Number(r.amount).toLocaleString('en-IN')} · refund processed` : r.amount > 0 ? `₹${Number(r.amount).toLocaleString('en-IN')} paid` : 'Free'}
               </span>
             </div>
             <div style="font-size:.75rem;color:var(--muted);margin-top:.5rem">

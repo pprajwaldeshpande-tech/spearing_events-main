@@ -132,7 +132,7 @@
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
-     PAYMENT MODAL — Card / UPI / NetBanking
+     PAYMENT MODAL — Demo Card / QR Code
      ══════════════════════════════════════════════════════════ -->
 <div class="modal-overlay" id="payment-modal">
   <div class="modal payment-modal">
@@ -151,9 +151,8 @@
 
       <!-- Payment method tabs -->
       <div class="pay-tabs">
-        <button class="pay-tab-btn active" onclick="switchPayTab('card')"> Card</button>
-        <button class="pay-tab-btn" onclick="switchPayTab('upi')"> UPI</button>
-        <button class="pay-tab-btn" onclick="switchPayTab('netbanking')"> NetBanking</button>
+        <button class="pay-tab-btn active" data-method="card" onclick="switchPayTab('card')"> Card</button>
+        <button class="pay-tab-btn" data-method="upi" onclick="switchPayTab('upi')"> QR Code</button>
       </div>
 
       <!-- ── Card tab ──────────────────────── -->
@@ -161,15 +160,15 @@
         <!-- Card visual -->
         <div class="card-demo">
           <div class="card-chip"></div>
-          <div class="card-number-display" id="card-number-display">•••• •••• •••• ••••</div>
+          <div class="card-number-display" id="card-number-display">•••• •••• •••• 4242</div>
           <div class="card-details-row">
             <div>
               <div style="font-size:.65rem;opacity:.6;margin-bottom:.1rem">CARD HOLDER</div>
-              <div id="card-holder-display" style="font-size:.8rem;color:#fff">YOUR NAME</div>
+              <div id="card-holder-display" style="font-size:.8rem;color:#fff">CARDHOLDER</div>
             </div>
             <div style="text-align:right">
               <div style="font-size:.65rem;opacity:.6;margin-bottom:.1rem">EXPIRES</div>
-              <div id="card-expiry-display" style="font-size:.8rem;color:#fff">MM/YY</div>
+              <div id="card-expiry-display" style="font-size:.8rem;color:#fff">12/30</div>
             </div>
           </div>
         </div>
@@ -177,28 +176,27 @@
         <div class="pay-form">
           <div class="form-group">
             <label>Card Number</label>
-            <input type="text" id="card-number" placeholder="4111 1111 1111 1111" maxlength="19"
+            <input type="text" id="card-number" value="4242 4242 4242 4242" placeholder="4242 4242 4242 4242" maxlength="19"
               oninput="formatCardNumber(this)" />
           </div>
           <div class="form-group">
             <label>Card Holder Name</label>
-            <input type="text" id="card-holder" placeholder="Name on card"
-              oninput="document.getElementById('card-holder-display').textContent = this.value.toUpperCase() || 'YOUR NAME'" />
+            <input type="text" id="card-holder" placeholder="Name on card" maxlength="100" autocomplete="cc-name"
+              oninput="document.getElementById('card-holder-display').textContent = this.value.trim().toUpperCase() || 'CARDHOLDER'" />
           </div>
           <div class="form-row">
             <div class="form-group">
               <label>Expiry (MM/YY)</label>
-              <input type="text" id="card-expiry" placeholder="MM/YY" maxlength="5"
+              <input type="text" id="card-expiry" value="12/30" placeholder="MM/YY" maxlength="5"
                 oninput="formatExpiry(this)" />
             </div>
             <div class="form-group">
               <label>CVV</label>
-              <input type="password" id="card-cvv" placeholder="•••" maxlength="4" />
+              <input type="password" id="card-cvv" value="123" placeholder="•••" maxlength="4" />
             </div>
           </div>
           <div style="display:flex;gap:.5rem;margin-bottom:.75rem;font-size:1.5rem">
             <span title="Visa"></span>
-            <span title="Mastercard" style="color:#eb001b">●</span>
             <span title="RuPay"></span>
             <span title="Amex"></span>
           </div>
@@ -210,6 +208,7 @@
 
       <!-- ── UPI tab ──────────────────────── -->
       <div class="pay-tab-panel" id="ptab-upi">
+        <div class="pay-form">
         <div class="upi-apps">
           <div class="upi-app-btn" onclick="selectUpiApp(this,'gpay')">
             GPay
@@ -252,38 +251,10 @@
         <button class="btn btn-primary pay-btn" id="pay-upi-btn" onclick="processPayment('upi')">
           Pay <span class="pay-btn-amount"></span> via UPI →
         </button>
+        </div>
       </div>
 
-      <!-- ── NetBanking tab ───────────────── -->
-      <div class="pay-tab-panel" id="ptab-netbanking">
-        <p style="font-size:.85rem;margin-bottom:1rem">Select your bank:</p>
-
-        <div class="bank-grid">
-          <div class="bank-btn" onclick="selectBank(this,'sbi')">SBI</div>
-          <div class="bank-btn" onclick="selectBank(this,'hdfc')">HDFC</div>
-          <div class="bank-btn" onclick="selectBank(this,'icici')">ICICI</div>
-          <div class="bank-btn" onclick="selectBank(this,'axis')">Axis</div>
-          <div class="bank-btn" onclick="selectBank(this,'kotak')">Kotak</div>
-          <div class="bank-btn" onclick="selectBank(this,'yes')">Yes Bank</div>
-        </div>
-
-        <div style="display:flex;align-items:center;gap:.75rem;margin:.5rem 0 1rem">
-          <div style="flex:1;height:1px;background:var(--border)"></div>
-          <span style="font-size:.78rem;color:var(--muted)">OR other bank</span>
-          <div style="flex:1;height:1px;background:var(--border)"></div>
-        </div>
-
-        <div class="form-group">
-          <label>Search bank</label>
-          <input type="text" id="bank-search" placeholder="Type bank name…" />
-        </div>
-
-        <button class="btn btn-primary pay-btn" id="pay-nb-btn" onclick="processPayment('netbanking')">
-          Proceed to bank →
-        </button>
-      </div>
-
-      <div class="rzp-logo"> Pay by UPI · Admin verifies each transaction</div>
+      <div class="rzp-logo">Card payment · QR payments verified manually</div>
     </div>
 
     <!-- ── Step 2: Processing ────────────── -->
@@ -335,7 +306,7 @@
 
 <div id="toast-container"></div>
 <script src="shared.js?v=7"></script>
-<script src="api-client.js?v=7"></script>
+<script src="api-client.js?v=12"></script>
 <script>
   const USER_LAT = 12.9762;
   const USER_LON = 77.5736;
@@ -348,6 +319,7 @@
   let lastBookingId  = null;
   let pendingBookingId = null;
   let sharedPaymentQr = null;
+  const initialCardFormMarkup = document.querySelector('#ptab-card .pay-form').innerHTML;
 
   (async function init() {
     await EventSpot.ready;
@@ -567,6 +539,7 @@
 
     const e    = currentEvent;
     const isFree = !e.price || e.price === 0;
+    const demoCardEnabled = !isFree && (await EventSpot.api('/payments/demo-card/status')).enabled;
     const amtStr = isFree ? 'Free' : '₹' + Number(e.price).toLocaleString('en-IN');
 
     document.getElementById('pay-amount-display').textContent = amtStr;
@@ -582,13 +555,18 @@
     document.getElementById('pay-step-1').style.display = '';
     document.getElementById('pay-step-2').style.display = 'none';
     document.getElementById('pay-step-3').style.display = 'none';
+    document.querySelector('#ptab-card .pay-form').innerHTML = initialCardFormMarkup;
+    const user = getCurrentUser();
+    const cardHolderName = (user?.full_name || user?.fullName || user?.username || '').trim();
+    document.getElementById('card-holder').value = cardHolderName;
+    document.getElementById('card-holder-display').textContent = cardHolderName.toUpperCase() || 'CARDHOLDER';
 
     if (isFree) {
       document.querySelector('.pay-tabs').style.display = 'none';
       document.querySelectorAll('.pay-tab-panel').forEach(p => p.classList.remove('active'));
       document.getElementById('ptab-card').classList.add('active');
       document.querySelector('.card-demo').style.display = 'none';
-      document.querySelector('.pay-form').innerHTML = `
+      document.querySelector('#ptab-card .pay-form').innerHTML = `
         <div style="text-align:center;padding:1rem 0">
           <div style="font-size:3rem;margin-bottom:.75rem"></div>
           <p style="color:var(--success);font-weight:600;margin-bottom:1.5rem">This is a free event — no payment required!</p>
@@ -598,15 +576,13 @@
         </div>
       `;
     } else {
-      document.querySelector('.pay-tabs').style.display = 'none';
-      document.querySelectorAll('.pay-tab-panel').forEach(p => p.classList.remove('active'));
-      document.getElementById('ptab-card').classList.add('active');
-      document.querySelector('.card-demo').style.display = 'none';
-      document.querySelector('.pay-form').innerHTML = `<p style="text-align:center;color:var(--muted)">Loading the admin payment QR…</p>`;
+      document.querySelector('.pay-tabs').style.display = '';
+      document.querySelector('[data-method="card"]').style.display = demoCardEnabled ? '' : 'none';
+      document.querySelector('.card-demo').style.display = demoCardEnabled ? '' : 'none';
+      switchPayTab(demoCardEnabled ? 'card' : 'upi');
     }
 
     document.getElementById('payment-modal').classList.add('open');
-    if (!isFree) await prepareUpiPayment(e);
   }
 
   function closePayment() {
@@ -641,7 +617,7 @@
       const upiUri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${price.toFixed(2)}&cu=INR&tn=${encodeURIComponent('Booking ' + pendingBookingId + ' ' + cleanTitle)}`;
       const qrSource = `./api/payments/upi-qr?bookingId=${encodeURIComponent(pendingBookingId)}&t=${Date.now()}`;
 
-      document.querySelector('.pay-form').innerHTML = `
+      document.querySelector('#ptab-upi .pay-form').innerHTML = `
         <div class="upi-checkout-box" style="text-align:center">
           <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:1rem;margin-bottom:1rem">
             <div style="font-size:1.8rem;font-weight:700;color:var(--accent2);margin-bottom:.2rem">₹${price.toLocaleString('en-IN')}</div>
@@ -717,7 +693,7 @@
           <a class="btn btn-outline" href="${qrSource}" target="_blank">Open QR image</a>`;
       });
     } catch (error) {
-      document.querySelector('.pay-form').innerHTML = `<p style="text-align:center;color:var(--danger)">${error.message}</p>`;
+      document.querySelector('#ptab-upi .pay-form').innerHTML = `<p style="text-align:center;color:var(--danger)">${error.message}</p>`;
       showToast(error.message, 'error');
     }
   }
@@ -766,11 +742,10 @@
 
   function switchPayTab(tab) {
     selectedMethod = tab;
-    document.querySelectorAll('.pay-tab-btn').forEach((b, i) => {
-      b.classList.toggle('active', ['card','upi','netbanking'][i] === tab);
-    });
+    document.querySelectorAll('.pay-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.method === tab));
     document.querySelectorAll('.pay-tab-panel').forEach(p => p.classList.remove('active'));
     document.getElementById('ptab-' + tab).classList.add('active');
+    if (tab === 'upi' && currentEvent && Number(currentEvent.price) > 0) prepareUpiPayment(currentEvent);
   }
 
   function selectUpiApp(el, app) {
@@ -807,8 +782,16 @@
   async function processPayment(method) {
     const e      = currentEvent;
     const isFree = !e.price || e.price === 0;
-    if (!isFree || method !== 'free') {
-      showToast('Paid bookings use the shared admin QR and manual payment verification.', 'error');
+    if (method === 'upi') {
+      await prepareUpiPayment(e);
+      return;
+    }
+    if ((isFree && method !== 'free') || (!isFree && method === 'free')) {
+      showToast(isFree ? 'This event is free; confirm the registration instead.' : 'This event requires payment.', 'error');
+      return;
+    }
+    if (method !== 'free' && method !== 'card') {
+      showToast('Select Card or QR Code to continue.', 'error');
       return;
     }
 
@@ -818,6 +801,43 @@
       showToast('Sorry! This event just sold out. No seats available.', 'error');
       document.getElementById('payment-modal').classList.remove('open');
       renderEvent(e, getCurrentUser());
+      return;
+    }
+
+    if (method === 'card') {
+      const cardNumber = document.getElementById('card-number').value.replace(/\D/g, '');
+      const cardHolder = document.getElementById('card-holder').value.trim();
+      const cardExpiry = document.getElementById('card-expiry').value.trim();
+      const cardCvv = document.getElementById('card-cvv').value.trim();
+      if (!cardHolder || cardHolder.length > 100) {
+        showToast('Enter the cardholder name.', 'error');
+        return;
+      }
+      if (cardNumber !== '4242424242424242' || cardExpiry !== '12/30' || cardCvv !== '123') {
+        showToast('The card details could not be verified.', 'error');
+        return;
+      }
+
+      const button = document.getElementById('pay-card-btn');
+      button.disabled = true;
+      try {
+        if (!pendingBookingId) {
+          const booking = await EventSpot.createBooking(e.id, 1);
+          pendingBookingId = booking.bookingId;
+        }
+        const payment = await EventSpot.demoCardPayment({
+          bookingId: pendingBookingId,
+          cardNumber,
+          cardHolder,
+          cardExpiry,
+          cardCvv
+        });
+        pendingBookingId = null;
+        showCardPendingApproval(payment.bookingId);
+      } catch (error) {
+        button.disabled = false;
+        showToast(error.message, 'error');
+      }
       return;
     }
 
@@ -856,6 +876,26 @@
     document.getElementById('pay-step-2').style.display = 'none';
     document.getElementById('pay-step-3').style.display = '';
     await EventSpot.refresh();
+  }
+
+  function showCardPendingApproval(bookingId) {
+    document.getElementById('pay-step-1').style.display = 'none';
+    document.getElementById('pay-step-2').style.display = 'none';
+    document.getElementById('pay-step-3').style.display = '';
+    document.getElementById('payment-result-icon').textContent = '…';
+    document.getElementById('payment-result-title').textContent = 'Payment Awaiting Approval';
+    document.getElementById('payment-result-description').textContent = 'Your card payment was submitted. Your booking will be confirmed after admin approval.';
+    document.getElementById('payment-result-notice').textContent = 'No entry ticket is available until your payment is approved.';
+    document.getElementById('payment-result-notice').style.color = 'var(--warn)';
+    document.getElementById('payment-result-notice').style.background = 'rgba(251,146,60,.1)';
+    document.getElementById('payment-result-notice').style.borderColor = 'rgba(251,146,60,.3)';
+    document.getElementById('qr-ticket-img').closest('.qr-ticket-wrap').style.display = 'none';
+    document.getElementById('conf-event-name').textContent = currentEvent.title;
+    document.getElementById('conf-amount').textContent = '₹' + Number(currentEvent.price).toLocaleString('en-IN');
+    document.getElementById('conf-method').textContent = 'Card — awaiting admin approval';
+    document.getElementById('conf-booking-id').textContent = bookingId;
+    EventSpot.refresh().catch(error => showToast(error.message, 'error'));
+    showToast('Card payment submitted for admin approval.', 'success');
   }
 
   // ── Download QR ───────────────────────────────────────────
