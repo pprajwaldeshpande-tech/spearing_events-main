@@ -302,13 +302,7 @@
           <div class="admin-stat-card"><small>Pending</small><strong id="entry-stat-pending">0</strong></div>
           <div class="admin-stat-card"><small>Cancelled</small><strong id="entry-stat-cancelled">0</strong></div>
         </div>
-        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">
-          <input id="entry-pass-token" type="text" placeholder="Paste pass token or scanned URL" style="max-width:420px">
-          <button type="button" class="btn btn-primary" onclick="checkInEntryPass()">Verify and check in</button>
-          <button type="button" class="btn btn-outline" onclick="startEntryScanner()">Scan with camera</button>
-        </div>
-        <video id="entry-scanner-video" playsinline muted style="display:none;width:min(100%,420px);max-height:320px;background:#000;border-radius:.5rem"></video>
-        <div id="entry-pass-result" role="status"></div>
+        <div id="entry-pass-result" role="status" style="margin-bottom:1rem"></div>
       </div>
       <div class="table-wrap">
         <table>
@@ -792,11 +786,6 @@
     window.location.href = 'login.html';
   }
 
-    function entryPassToken(value) {
-      const match = String(value).match(/[a-f0-9]{64}/i);
-      return match ? match[0] : String(value).trim();
-    }
-
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[character]));
     }
@@ -851,43 +840,7 @@
       }
     }
 
-  let entryScannerStream = null;
-  let entryScannerBusy = false;
-
-  async function startEntryScanner() {
-    const result = document.getElementById('entry-pass-result');
-    if (!('BarcodeDetector' in window)) {
-      result.innerHTML = '<div style="color:var(--danger)">Camera QR scanning is not supported by this browser. Use Chrome on Android or paste the scanned URL.</div>';
-      return;
-    }
-    try {
-      entryScannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
-      const video = document.getElementById('entry-scanner-video');
-      video.srcObject = entryScannerStream;
-      video.style.display = 'block';
-      await video.play();
-      const detector = new BarcodeDetector({ formats: ['qr_code'] });
-      const scan = async () => {
-        if (!entryScannerStream || entryScannerBusy) return;
-        try {
-          const codes = await detector.detect(video);
-          if (codes.length) {
-            entryScannerBusy = true;
-            document.getElementById('entry-pass-token').value = codes[0].rawValue;
-            await checkInEntryPass(codes[0].rawValue);
-            setTimeout(() => { entryScannerBusy = false; }, 1500);
-          }
-        } catch (_) {}
-        if (entryScannerStream) requestAnimationFrame(scan);
-      };
-      requestAnimationFrame(scan);
-    } catch (error) {
-      result.innerHTML = `<div style="color:var(--danger)">Camera could not start: ${escapeHtml(error.message)}</div>`;
-    }
-  }
-
     async function checkInEntryPass(token) {
-      token = entryPassToken(token || document.getElementById('entry-pass-token').value);
       if (!token) return;
       const result = document.getElementById('entry-pass-result');
       try {
